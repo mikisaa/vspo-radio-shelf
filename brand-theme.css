@@ -136,3 +136,7 @@ footer p { color: #998da8; }
   .episode-controls { border-top-color: #f2eaf4; }
   .play-link { padding: 8px 14px; }
 }
+/* Distinct non-official wordmark; avoid overflow for Japanese title. */
+.brand-name { font-size: 18px; letter-spacing: .015em; white-space: nowrap; }
+.brand-name small { font-size: 8px; letter-spacing: .09em; }
+@media (max-width: 600px) { .brand-name { font-size: 15px; } .brand-name small { font-size: 7px; letter-spacing: .03em; } }
