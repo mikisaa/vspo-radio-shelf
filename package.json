@@ -1,0 +1,10 @@
+{
+  "name": "radio-shelf",
+  "private": true,
+  "version": "1.2.0",
+  "type": "module",
+  "scripts": {
+    "test": "node --test tests/*.test.js",
+    "serve": "python -m http.server 8000"
+  }
+}
