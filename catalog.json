@@ -1,0 +1,33 @@
+{
+  "version": "2026-11-16-history-verified",
+  "items": [
+    {
+      "url": "https://fc.vspo.jp/gallery/radio99",
+      "title": "第56回ラジオ",
+      "date": "2026-07-02",
+      "hosts": "",
+      "notes": "公式ニュース news156 より確認"
+    },
+    {
+      "url": "https://fc.vspo.jp/gallery/radio79",
+      "title": "第36回ラジオ",
+      "date": "2026-02-12",
+      "hosts": "",
+      "notes": "公式ニュース news130 より確認"
+    },
+    {
+      "url": "https://fc.vspo.jp/ja/gallery/radio40",
+      "title": "第20回ラジオ（再投稿版）",
+      "date": "2025-05-13",
+      "hosts": "",
+      "notes": "公式ニュース news70 より確認。再投稿版。"
+    },
+    {
+      "url": "https://fc.vspo.jp/ja/gallery/radio22",
+      "title": "第2回ラジオ",
+      "date": "2024-12-26",
+      "hosts": "",
+      "notes": "公式ニュース news38 より確認"
+    }
+  ]
+}
