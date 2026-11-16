@@ -1,8 +1,8 @@
 {
   "id": "./",
-  "name": "Radio Shelf | ぶいすぽラジオへの近道",
-  "short_name": "Radio Shelf",
-  "description": "ぶいすぽっ！FCラジオの個人用リンクライブラリ",
+  "name": "ぶいすぽっ！ラジオ | 非公式 Radio Shelf",
+  "short_name": "ぶいすぽっ！ラジオ",
+  "description": "ぶいすぽっ！ファンクラブラジオの非公式・個人用リンクライブラリ。公式サイトで再生します。",
   "lang": "ja",
   "start_url": "./",
   "scope": "./",
