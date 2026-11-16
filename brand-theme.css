@@ -1,0 +1,138 @@
+/* Radio Shelf v1.2 - fan-inspired pink/lavender palette; artwork is original. */
+:root {
+  --bg: #fbfaff; --surface: #ffffff; --raised: #fff6fc; --border: #ece5f4;
+  --text: #312b3e; --muted: #7d768e; --mint: #ed5f9f; --mint-dark: #ffe6f0;
+  --lavender: #7264d0; --pink: #f16ba9;
+  color-scheme: light;
+}
+html { background: var(--bg); }
+body {
+  color: var(--text); background:
+    radial-gradient(circle at 104% 5%, #f5d9ff77, transparent 420px),
+    radial-gradient(circle at -10% 33%, #ffd3e977, transparent 340px),
+    linear-gradient(#fff, #fcf9ff 46%, #faf8ff);
+}
+button:focus-visible, a:focus-visible, input:focus-visible,
+textarea:focus-visible, select:focus-visible, summary:focus-visible { outline-color: #735acc; }
+.ambient { opacity: .18; filter: blur(100px); }
+.ambient-a { background: #ff8bb9; }
+.ambient-b { background: #bca1ff; }
+.app-shell { max-width: 1100px; }
+.topbar { height: 100px; }
+.brand-mark { width: 50px; height: 50px; background: none; border-radius: 15px; overflow: hidden; box-shadow: 0 7px 20px #b96fac35; }
+.brand-mark img { width: 100%; height: 100%; object-fit: cover; }
+.brand-name { font-size: 19px; color: #4a3b5e; letter-spacing: .07em; }
+.brand-name span { color: #ed61a4; }
+.brand-name small { color: #9786af; letter-spacing: .16em; font-size: 8px; }
+.icon-button { border-color: #ede2f4; color: #685885; background: white; box-shadow: 0 5px 16px #5f387b0a; }
+.icon-button:hover { color: #6b4fc0; border-color: #c1a5e8; background: #f9f3ff; }
+.hero {
+  background:
+    radial-gradient(circle at 87% 30%, #e9dbffad 0, transparent 29%),
+    radial-gradient(circle at 69% 103%, #ffd5e8bd 0, transparent 36%),
+    linear-gradient(128deg, #fff 4%, #fff3fb 59%, #f6efff 100%);
+  border: 1px solid #f0d7eb;
+  box-shadow: 0 20px 60px #9b63a31a;
+  min-height: 338px;
+}
+.hero:before { content: ''; position: absolute; inset: 0; pointer-events: none; opacity: .25;
+  background-image: radial-gradient(#e984b3 1px, transparent 1px); background-size: 17px 17px;
+  mask-image: linear-gradient(95deg, transparent 48%, black 99%); }
+.hero-copy { max-width: 560px; }
+.eyebrow, .tiny-label { color: #c95291; letter-spacing: .16em; }
+.pulse-dot { background: #ed67a7; box-shadow: 0 0 0 5px #fbcae1; }
+h1 { color: #3f3453; font-weight: 900; font-size: clamp(31px, 4.5vw, 47px); }
+h1 em { background: linear-gradient(115deg, #ff63a6, #855dce); color: transparent; -webkit-background-clip: text; background-clip: text; }
+.hero p { color: #706783; font-size: 14px; }
+.button { border-radius: 999px; transition: transform .15s, background .15s, box-shadow .15s; }
+.button-primary { background: linear-gradient(112deg, #fa68ab, #d853a2); color: white; box-shadow: 0 8px 20px #ed65a53b; }
+.button-primary:hover { background: linear-gradient(112deg, #f3559f, #c34593); box-shadow: 0 9px 24px #ed65a560; }
+.button-ghost { border-color: #e8cde6; background: #ffffffdd; color: #775491; }
+.button-ghost:hover, .button-outline:hover { background: #fff2fc; }
+.button-outline { border-color: #d9c3e7; color: #79569a; background: white; }
+.hero-decoration { right: 6%; width: 244px; height: 244px; display: grid; place-items: center; transform: translateY(-50%) rotate(7deg); }
+.hero-decoration img { width: 210px; height: 210px; border-radius: 45px; object-fit: cover; box-shadow: 16px 22px 44px #b96ead37, -8px -7px 30px #ffffff; transform: rotate(-7deg); }
+.hero-decoration::before, .hero-decoration::after { content: '✦'; position: absolute; color: #ee7bac; font-size: 35px; z-index: 3; }
+.hero-decoration::before { top: -22px; right: -20px; }
+.hero-decoration::after { bottom: -14px; left: -12px; font-size: 20px; color: #856fd4; }
+.vinyl, .wave { display: none; }
+.stats { margin-top: 17px; }
+.stat { background: #fff; border-color: #efe5f2; box-shadow: 0 5px 24px #76457c0d; padding: 23px 24px; position: relative; overflow: hidden; }
+.stat::before { content: ''; position: absolute; width: 34px; height: 4px; top: 0; left: 22px; border-radius: 0 0 5px 5px; background: linear-gradient(90deg, #ff70ae, #8270cf); }
+.stat-label { color: #756a87; }
+.stat strong { color: #594773; }
+.stat:nth-child(2) strong { color: #e665a4; }
+.stat:nth-child(3) strong { color: #7762bf; }
+.stat-unit { color: #9c92a8; }
+.section-heading { margin-bottom: 20px; }
+.section-heading h2 { color: #3b314e; }
+.sync-button { color: #8266a8; }
+.sync-button:hover { color: #ed5f9f; }
+.searchbox .icon { color: #b0a1c1; }
+.searchbox input, select, .dialog-body input, .dialog-body textarea { background: white; border-color: #e9e0ee; color: #3c3450; box-shadow: 0 4px 14px #65418d08; }
+.searchbox input::placeholder, .dialog-body input::placeholder, textarea::placeholder { color: #a598b1; }
+select { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%238974ad' stroke-width='2'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E"); }
+.tabs { gap: 7px; border: none; margin-bottom: 17px; }
+.tab { border: 1px solid #ede2f4; border-radius: 999px; background: #fff; color: #81768e; padding: 10px 18px; font-size: 12px; }
+.tab:hover { border-color: #e8b1ce; color: #bf4f8f; }
+.tab.active { background: #fff0f8; border: 1px solid #eab2d2; color: #c54285; }
+.tab span { background: #f7d4e8; color: #a53879; }
+.episode-list { gap: 12px; }
+.episode-card { background: #fff; border: 1px solid #eee3f1; border-radius: 19px; box-shadow: 0 5px 21px #7d489012; padding: 14px; }
+.episode-card:hover { border-color: #e3add0; box-shadow: 0 8px 23px #ab75a125; }
+.episode-art { background: linear-gradient(145deg, #ffd2e6, #f1e1fd); color: #ce4f9a; border-radius: 15px; }
+.episode-card:nth-child(3n+2) .episode-art { background: linear-gradient(135deg, #e2dafe, #f8e7fe); color: #8062c4; }
+.episode-card:nth-child(3n+3) .episode-art { background: linear-gradient(140deg, #ffe8db, #ffd8ed); color: #d86ca0; }
+.episode-art span { color: #a564a5; }
+.episode-meta { color: #9a8fa7; }
+.heard-tag { background: #efe8fc; color: #7256b5; }
+.episode-info h3 { color: #443b56; }
+.hosts { color: #80768f; }
+.notes { color: #a096ae; }
+.episode-controls { gap: 6px; }
+.play-link { background: linear-gradient(120deg, #f36daa, #c95ca9); border: 0; border-radius: 999px; color: #fff; box-shadow: 0 5px 12px #dc71a229; padding: 11px 16px; }
+.play-link:hover { background: #da4c98; }
+.small-icon { color: #8a7da3; }
+.small-icon:hover { background: #fbecf6; color: #ed5f9f; }
+.small-icon.is-fav { background: #ffedf7; color: #d74f90; }
+.small-icon.is-fav .icon { fill: #f7bfdc; }
+.small-icon.is-heard { background: #eeeafa; color: #715ac4; }
+.empty-state { background: #fff; border-color: #ebd5e7; }
+.empty-icon { background: #f9e7f6; color: #d364a2; }
+.empty-state p { color: #887d95; }
+footer { border-color: #ecdfed; }
+footer p { color: #998da8; }
+.modal { border-color: #ead6e9; background: #fff; color: #40344d; box-shadow: 0 25px 90px #43326033; }
+.modal::backdrop { background: #291e3fa6; }
+.dialog-body .hint { color: #786b88; }
+.paste-helper { background: #faf4fe; border-color: #ecdef2; }
+.paste-helper summary { color: #8a5aa1; }
+.form-error { background: #fff0f3; color: #af2f5a; }
+.text-danger { color: #be3965; }
+.setting-block { border-color: #eee2ee; }
+.setting-block p { color: #756a87; }
+.setting-block small, .setting-block .muted { color: #998ca9; }
+.toast { background: #fff0f8; color: #973a7b; border: 1px solid #efb9d9; box-shadow: 0 7px 25px #85589027; }
+@media (max-width: 820px) {
+  .hero-decoration { right: -20px; opacity: .40; transform: translateY(-50%) scale(.86) rotate(7deg); }
+  .episode-controls { border-color: #f1e8f3; }
+}
+@media (max-width: 600px) {
+  .app-shell { padding: 0 16px; }
+  .topbar { height: 78px; }
+  .brand-mark { width: 44px; height: 44px; border-radius: 13px; }
+  .brand-name { font-size: 16px; }
+  .brand-name small { font-size: 7px; letter-spacing: .12em; }
+  .hero { min-height: 310px; padding: 27px 22px; border-radius: 22px; }
+  .hero p { max-width: 270px; font-size: 12px; }
+  .hero-decoration { top: 46%; right: -142px; opacity: .18; transform: translateY(-50%) scale(.75); }
+  .hero-actions { gap: 8px; }
+  .hero-actions .button { font-size: 11px; padding: 9px 12px; }
+  .stats { margin: 13px 0 31px; }
+  .stat { padding: 16px 10px; }
+  .stat::before { left: 10px; }
+  .tab { padding: 9px 12px; }
+  .episode-card { padding: 12px; }
+  .episode-controls { border-top-color: #f2eaf4; }
+  .play-link { padding: 8px 14px; }
+}
