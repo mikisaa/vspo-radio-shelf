@@ -33,11 +33,11 @@
 
 ## GitHub Pagesで公開する
 
-1. `mikisaa` で [新規リポジトリ作成](https://github.com/new) を開き、名前を `radio-shelf`、公開範囲を `Public` として作成する（既存の他プロジェクトを流用しない）。
-2. このフォルダの**中身**をリポジトリ直下に置いて `main` にコミットする。
-3. GitHub の **Settings → Pages → Build and deployment → Deploy from a branch → main / (root) → Save** を設定する。接続済みGitHub経由でコードアップロードを依頼することも可能。
-4. 公開されたら URL `https://mikisaa.github.io/radio-shelf/` をSafariで開く（設定が完了するまでこのURLは使えない）。
-5. Safariの共有ボタン → **ホーム画面に追加**。
+1. リポジトリ `mikisaa/vspo-radio-shelf` は作成済み・Publicです。アプリのファイルは `main` の直下に配置済みです。
+2. アプリの更新時は `main` に変更をコミットします。
+3. GitHub の **Settings → Pages → Build and deployment → Deploy from a branch → main / (root) → Save** を設定する。リポジトリへのコード登録だけでは、Pages公開は有効になりません。
+4. 公開されたら URL `https://mikisaa.github.io/vspo-radio-shelf/` をSafariで開く（設定が完了するまでこのURLは使えない）。
+5. Safariの共有ボタン → **ホーム画面に追加**。公開後、ログイン済みの公式ページに各回のリンクから移動できます。
 
 > GitHub Pages上のHTML/CSS/JSと `catalog.json` は公開されます。パスワード・Cookie・会員向け音声・個人メモは絶対にコミットしないでください。メモ・お気に入り状態は公開されず端末内にあります。
 
