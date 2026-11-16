@@ -71,7 +71,7 @@ h1 em { background: linear-gradient(115deg, #ff63a6, #855dce); color: transparen
 .searchbox .icon { color: #b0a1c1; }
 .searchbox input, select, .dialog-body input, .dialog-body textarea { background: white; border-color: #e9e0ee; color: #3c3450; box-shadow: 0 4px 14px #65418d08; }
 .searchbox input::placeholder, .dialog-body input::placeholder, textarea::placeholder { color: #a598b1; }
-select { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%238974ad' stroke-width='2'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E"); }
+select { background-repeat: no-repeat; background-position: right 13px center; background-size: 16px 16px; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%238974ad' stroke-width='2'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E"); }
 .tabs { gap: 7px; border: none; margin-bottom: 17px; }
 .tab { border: 1px solid #ede2f4; border-radius: 999px; background: #fff; color: #81768e; padding: 10px 18px; font-size: 12px; }
 .tab:hover { border-color: #e8b1ce; color: #bf4f8f; }
