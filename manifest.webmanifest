@@ -1,0 +1,26 @@
+{
+  "id": "./",
+  "name": "Radio Shelf | ぶいすぽラジオへの近道",
+  "short_name": "Radio Shelf",
+  "description": "ぶいすぽっ！FCラジオの個人用リンクライブラリ",
+  "lang": "ja",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#fbfaff",
+  "theme_color": "#f16ba9",
+  "icons": [
+    {
+      "src": "./assets/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "./assets/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
