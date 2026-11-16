@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#fff0f8">
+  <meta name="description" content="ぶいすぽっ！ファンクラブのラジオへの個人用リンクライブラリ。公式サイトで再生します。">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Radio Shelf">
+  <meta name="color-scheme" content="light">
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="icon" type="image/png" sizes="192x192" href="./assets/icon-192.png">
+  <link rel="apple-touch-icon" href="./assets/icon-192.png">
+  <link rel="stylesheet" href="./styles.css">
+  <link rel="stylesheet" href="./brand-theme.css">
+  <title>Radio Shelf | ぶいすぽっ！ラジオの非公式リンク管理</title>
+</head>
+<body>
+  <svg xmlns="http://www.w3.org/2000/svg" class="svg-sprite" aria-hidden="true">
+    <symbol id="i-headphones" viewBox="0 0 24 24"><path d="M3 14v-3a9 9 0 0 1 18 0v3M3 14v4a2 2 0 0 0 2 2h2a1 1 0 0 0 1-1v-5a1 1 0 0 0-1-1H5a2 2 0 0 0-2 1Zm18 0v4a2 2 0 0 1-2 2h-2a1 1 0 0 1-1-1v-5a1 1 0 0 1 1-1h2a2 2 0 0 1 2 1Z"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m16 16 5 5"/></symbol>
+    <symbol id="i-heart" viewBox="0 0 24 24"><path d="M20.8 4.8a5.5 5.5 0 0 0-7.8 0L12 5.9l-1.1-1.1a5.5 5.5 0 1 0-7.8 7.8L12 21l8.8-8.4a5.5 5.5 0 0 0 0-7.8Z"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 5 5L20 7"/></symbol>
+    <symbol id="i-play" viewBox="0 0 24 24"><path d="m8 5 11 7-11 7V5Z"/></symbol>
+    <symbol id="i-external" viewBox="0 0 24 24"><path d="M13 5h6v6M19 5l-9 9M19 13v5a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h5"/></symbol>
+    <symbol id="i-settings" viewBox="0 0 24 24"><path d="M4 7h16M4 17h16M8 4v6M16 14v6"/></symbol>
+    <symbol id="i-x" viewBox="0 0 24 24"><path d="M5 5 19 19M19 5 5 19"/></symbol>
+    <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 3v12m-5-5 5 5 5-5M4 17v3h16v-3"/></symbol>
+    <symbol id="i-upload" viewBox="0 0 24 24"><path d="M12 17V5m-5 5 5-5 5 5M4 17v3h16v-3"/></symbol>
+    <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20 11a8 8 0 0 0-14-5L3 9m0-6v6h6M4 13a8 8 0 0 0 14 5l3-3m0 6v-6h-6"/></symbol>
+    <symbol id="i-radio" viewBox="0 0 24 24"><rect x="3" y="7" width="18" height="13" rx="3"/><path d="m5 7 13-4M7 13h6M7 16h4"/><circle cx="17" cy="15" r="2"/></symbol>
+    <symbol id="i-more" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></symbol>
+    <symbol id="i-link" viewBox="0 0 24 24"><path d="M10 14a5 5 0 0 0 7 0l3-3a5 5 0 1 0-7-7l-2 2M14 10a5 5 0 0 0-7 0l-3 3a5 5 0 1 0 7 7l2-2"/></symbol>
+    <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7h.01"/></symbol>
+  </svg>
+  <div class="ambient ambient-a"></div><div class="ambient ambient-b"></div>
+  <div class="app-shell">
+    <header class="topbar">
+      <div class="brand">
+        <span class="brand-mark"><img src="./assets/icon-192.png" alt="Radio Shelf アイコン"></span>
+        <span class="brand-name">RADIO<span>SHELF</span><small>UNOFFICIAL FAN TOOL</small></span>
+      </div>
+      <button type="button" class="icon-button" id="settings-btn" title="設定・バックアップ" aria-label="設定・バックアップ"><svg class="icon"><use href="#i-settings"/></svg></button>
+    </header>
+
+    <main>
+      <section class="hero" aria-label="アプリ概要">
+        <div class="hero-copy">
+          <div class="eyebrow"><span class="pulse-dot"></span> FAN RADIO · QUICK ACCESS</div>
+          <h1>聴きたい回を、<br><em>もっと近くに。</em></h1>
+          <p>お気に入りのラジオを、ひとつの場所に。<br>再生は公式サイトで。そのままバックグラウンドでも。</p>
+          <div class="hero-actions">
+            <button id="add-btn" type="button" class="button button-primary"><svg class="icon"><use href="#i-plus"/></svg> ラジオを追加</button>
+            <button id="bulk-btn" type="button" class="button button-ghost"><svg class="icon"><use href="#i-link"/></svg> 過去回をまとめて追加</button>
+            <a class="button button-ghost" href="https://fc.vspo.jp/gallery/category/radio" target="_blank" rel="noopener noreferrer">公式一覧へ <svg class="icon"><use href="#i-external"/></svg></a>
+          </div>
+        </div>
+        <div class="hero-decoration" aria-hidden="true"><img src="./assets/icon-512.png" alt=""></div>
+      </section>
+
+      <section class="stats" aria-label="登録状況">
+        <div class="stat"><span class="stat-label">登録済み</span><strong id="total-count">0</strong><span class="stat-unit">エピソード</span></div>
+        <div class="stat"><span class="stat-label">未視聴</span><strong id="unheard-count">0</strong><span class="stat-unit">エピソード</span></div>
+        <div class="stat"><span class="stat-label">お気に入り</span><strong id="fav-count">0</strong><span class="stat-unit">エピソード</span></div>
+      </section>
+
+      <section class="library" aria-label="ラジオ一覧">
+        <div class="section-heading"><div><div class="tiny-label">YOUR COLLECTION</div><h2>ラジオライブラリ</h2></div><button id="sync-btn" type="button" class="sync-button" title="配布カタログの更新確認"><svg class="icon"><use href="#i-refresh"/></svg><span>更新確認</span></button></div>
+        <div class="filter-row">
+          <div class="searchbox"><svg class="icon"><use href="#i-search"/></svg><input id="search" type="search" aria-label="ラジオを検索" placeholder="回数・出演者・メモで検索" autocomplete="off"></div>
+          <select id="sort" aria-label="並び順"><option value="newest">新しい順</option><option value="oldest">古い順</option><option value="recent">最近開いた順</option><option value="title">名前順</option></select>
+        </div>
+        <div class="tabs" role="tablist" aria-label="絞り込み">
+          <button type="button" class="tab active" role="tab" aria-selected="true" data-filter="all">すべて <span id="tab-all">0</span></button>
+          <button type="button" class="tab" role="tab" aria-selected="false" data-filter="unheard">未視聴</button>
+          <button type="button" class="tab" role="tab" aria-selected="false" data-filter="favorites">お気に入り</button>
+          <button type="button" class="tab" role="tab" aria-selected="false" data-filter="heard">視聴済み</button>
+        </div>
+        <div id="list" class="episode-list" aria-live="polite"></div>
+        <div id="empty" class="empty-state" hidden><div class="empty-icon"><svg class="icon"><use href="#i-radio"/></svg></div><h3>該当するラジオはありません</h3><p id="empty-detail">検索条件を変更するか、ラジオを追加してください。</p><button id="empty-add" class="button button-outline" type="button"><svg class="icon"><use href="#i-plus"/></svg> ラジオを追加</button></div>
+      </section>
+    </main>
+    <footer><p>個人用の非公式リンク管理ツールです。音声・画像は保存せず、再生は公式サイトで行います。</p><p>会員認証が必要です。視聴可否は公式ファンクラブの会員条件によります。</p></footer>
+  </div>
+
+  <dialog id="add-dialog" class="modal" aria-labelledby="dialog-title">
+    <form id="episode-form" class="dialog-body">
+      <div class="dialog-header"><div><div class="tiny-label">ADD / EDIT</div><h2 id="dialog-title">ラジオを追加</h2></div><button type="button" class="icon-button close-dialog" aria-label="閉じる"><svg class="icon"><use href="#i-x"/></svg></button></div>
+      <p class="hint">公式ページのURLを登録します。音声ファイルの取得は行いません。</p>
+      <label for="episode-url">公式ラジオURL <span class="required">必須</span></label>
+      <input id="episode-url" name="url" type="url" inputmode="url" placeholder="https://fc.vspo.jp/gallery/radio99" required>
+      <label for="episode-title">タイトル <span class="required">必須</span></label>
+      <input id="episode-title" name="title" type="text" maxlength="120" placeholder="例：第56回ラジオ" required>
+      <div class="form-two"><div><label for="episode-date">公開日</label><input id="episode-date" name="date" type="date"></div><div><label for="episode-hosts">出演者</label><input id="episode-hosts" name="hosts" type="text" maxlength="160" placeholder="例：出演者名"></div></div>
+      <label for="episode-notes">メモ</label><textarea id="episode-notes" name="notes" maxlength="1000" rows="2" placeholder="好きだった話題など"></textarea>
+      <details class="paste-helper"><summary>お知らせ文からURL・タイトルを抽出</summary><textarea id="paste-text" rows="3" placeholder="公式のお知らせ文を貼り付けてください"></textarea><button id="extract-btn" class="button button-ghost small" type="button">文章から抽出</button></details>
+      <p id="form-error" class="form-error" role="alert" hidden></p>
+      <div class="dialog-actions"><button id="delete-btn" type="button" class="text-danger" hidden>一覧から削除</button><div class="dialog-action-right"><button type="button" class="button button-ghost close-dialog">キャンセル</button><button class="button button-primary" type="submit">保存</button></div></div>
+    </form>
+  </dialog>
+
+  <dialog id="bulk-dialog" class="modal" aria-labelledby="bulk-title">
+    <div class="dialog-body">
+      <div class="dialog-header"><div><div class="tiny-label">BULK IMPORT</div><h2 id="bulk-title">過去回のリンクをまとめて追加</h2></div><button type="button" class="icon-button close-dialog" aria-label="閉じる"><svg class="icon"><use href="#i-x"/></svg></button></div>
+      <p class="hint">公式サイトで表示される過去回のURLを複数貼り付けてください。改行・説明文が混在していても公式ラジオURLだけを抽出し、同じ回は重複登録しません。</p>
+      <label for="bulk-text">公式ラジオURL一覧</label>
+      <textarea id="bulk-text" rows="8" spellcheck="false" placeholder="https://fc.vspo.jp/gallery/radio99&#10;https://fc.vspo.jp/gallery/radio79"></textarea>
+      <p class="hint">公開日・第何回かはURLだけでは分からないため、未確認の場合は仮のタイトルになります。各回の編集画面から修正できます。音声データは収集しません。</p>
+      <p id="bulk-error" class="form-error" role="alert" hidden></p>
+      <div class="dialog-actions"><div class="dialog-action-right"><button type="button" class="button button-ghost close-dialog">キャンセル</button><button type="button" class="button button-primary" id="bulk-import-btn">リンクを追加</button></div></div>
+    </div>
+  </dialog>
+
+  <dialog id="settings-dialog" class="modal" aria-labelledby="settings-title">
+    <div class="dialog-body">
+      <div class="dialog-header"><div><div class="tiny-label">PREFERENCES</div><h2 id="settings-title">設定・バックアップ</h2></div><button type="button" class="icon-button close-dialog" aria-label="閉じる"><svg class="icon"><use href="#i-x"/></svg></button></div>
+      <div class="setting-block"><h3>配布カタログ</h3><p>アプリ起動時に公開カタログの変更を確認します。追加・更新があると一覧へ反映します。ただし、公式サイトからの自動収集ではありません。</p><button id="settings-sync" type="button" class="button button-outline"><svg class="icon"><use href="#i-refresh"/></svg> 今すぐ確認</button><small id="last-sync">未確認</small></div>
+      <div class="setting-block"><h3>データの保存先</h3><p>お気に入り・視聴済み・追加したURLはこの端末のブラウザ内だけに保存されます。別の端末と自動同期されません。機種変更やSafariデータ削除に備えてバックアップしてください。</p><div class="setting-actions"><button type="button" class="button button-outline" id="export-btn"><svg class="icon"><use href="#i-download"/></svg> JSON書き出し</button><button type="button" class="button button-outline" id="import-btn"><svg class="icon"><use href="#i-upload"/></svg> JSON読み込み</button><input type="file" id="import-file" accept=".json,application/json" hidden></div></div>
+      <div class="setting-block"><h3>iPhoneで使う</h3><p>公開したページをSafariで開き、共有メニュー →「ホーム画面に追加」。ここから公式の再生ページをSafariで開いて聴きます。</p><p class="muted">※ このツールは公式ファンクラブが提供するアプリではありません。</p></div>
+    </div>
+  </dialog>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <script type="module" src="./app.js"></script>
+</body>
+</html>
