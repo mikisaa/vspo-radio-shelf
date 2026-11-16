@@ -1,4 +1,4 @@
-const CACHE_NAME = 'radio-shelf-v4';
+const CACHE_NAME = 'radio-shelf-v5';
 const SHELL = ['./', './index.html', './styles.css', './brand-theme.css', './core.js', './app.js', './manifest.webmanifest', './assets/icon-192.png', './assets/icon-512.png'];
 self.addEventListener('install', event => {
   event.waitUntil(caches.open(CACHE_NAME).then(cache => cache.addAll(SHELL)).then(() => self.skipWaiting()));
