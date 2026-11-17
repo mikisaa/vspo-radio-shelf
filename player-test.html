@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#fff0f8">
+<meta name="robots" content="noindex,nofollow">
+<title>アプリ内再生の互換性テスト | ぶいすぽっ！ラジオ</title>
+<style>
+:root {color-scheme:light; font-family:-apple-system,BlinkMacSystemFont,"Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;color:#372b4b;background:#fff9fe}
+*{box-sizing:border-box} body{margin:0;background:radial-gradient(circle at 92% 0,#f6e3ff,transparent 25rem),#fff9fe}
+main{max-width:850px;margin:auto;padding:max(16px,env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) max(30px,env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px))}
+a{color:#7652bc} header{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:20px}
+h1{font-size:clamp(21px,5vw,29px);margin:0 0 12px}.tag{font-weight:700;color:#ae528e;font-size:12px;letter-spacing:.1em;margin-bottom:8px}
+p{color:#786e83;font-size:14px;line-height:1.7}.card{padding:18px;background:white;border:1px solid #f0daec;border-radius:22px;box-shadow:0 9px 22px #85589010}
+select,button,.button{font:inherit;border-radius:14px;padding:12px 15px;border:1px solid #e6cde5;background:white;color:#583a75;max-width:100%}
+button{background:linear-gradient(100deg,#f26eaf,#a36ad7);color:white;border:0;font-weight:800;cursor:pointer}
+button:focus-visible,select:focus-visible,a:focus-visible{outline:3px solid #7a53cb;outline-offset:3px}
+.controls{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:14px 0}
+.player{width:100%;height:min(67vh,640px);min-height:370px;border:1px solid #ead6e8;border-radius:14px;background:#faf5ff}
+.note{margin:12px 0 0;font-size:13px}.warning{color:#a23d69} .action{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:12px}
+footer{font-size:12px;color:#897c99;margin-top:20px}
+@media(max-width:550px){.card{padding:13px}.player{height:60vh;min-height:350px}.controls>*{flex:1;min-width:130px}}
+</style>
+</head>
+<body>
+<main>
+<header><div><div class="tag">RADIO SHELF ・ 非公式 ・ 動作検証</div><h1>アプリ内再生テスト</h1></div><a href="./">ライブラリへ戻る</a></header>
+<section class="card">
+<p>会員登録済みの公式ラジオページを、この画面内にそのまま表示できるか確認します。音声の抽出、認証の迂回、コンテンツの複製は行いません。</p>
+<label for="episode">試すエピソード</label>
+<div class="controls">
+<select id="episode">
+<option value="radio118">第75回（通算 radio118）</option>
+<option value="radio99">第56回（通算 radio99）</option>
+<option value="radio1">最初の回（通算 radio1）</option>
+</select>
+<button id="launch" type="button">アプリ内で開いてみる</button>
+</div>
+<div id="place"><p>「アプリ内で開いてみる」を押すと公式ページが表示されます。</p></div>
+<div class="action"><a id="external" class="button" href="https://fc.vspo.jp/gallery/radio118" target="_blank" rel="noopener noreferrer">公式サイトで開く</a><button id="stop" type="button">表示を終了</button></div>
+<p class="note warning">注意：公式サイトが埋め込みを禁止している場合、画面が空白になることがあります。ブラウザの制限でログインできない場合もあります。表示できなくても認証制限を回避しません。</p>
+</section>
+<footer>これは非公式の個人用リンク管理ツールによる互換性テストです。公式のプレイヤー埋め込み対応・許諾は未確認です。</footer>
+</main>
+<script>
+'use strict';
+const episode=document.getElementById('episode');
+const launch=document.getElementById('launch');
+const stop=document.getElementById('stop');
+const place=document.getElementById('place');
+const external=document.getElementById('external');
+const playerUrl=()=> 'https://fc.vspo.jp/gallery/'+episode.value;
+episode.addEventListener('change',()=>{
+  external.href=playerUrl();
+  place.replaceChildren(document.createElement('p')).firstChild.textContent='エピソードを選択して再試行してください。';
+});
+launch.addEventListener('click',()=>{
+  const url=playerUrl();
+  external.href=url;
+  const iframe=document.createElement('iframe');
+  iframe.className='player';
+  iframe.title='ぶいすぽっ！ファンクラブラジオの公式ページ（埋め込み動作確認）';
+  iframe.setAttribute('allow','autoplay; encrypted-media; fullscreen; picture-in-picture');
+  iframe.setAttribute('referrerpolicy','strict-origin-when-cross-origin');
+  iframe.src=url;
+  place.replaceChildren(iframe);
+});
+stop.addEventListener('click',()=>{
+  place.replaceChildren(document.createElement('p')).firstChild.textContent='表示を終了しました。';
+});
+</script>
+</body>
+</html>
