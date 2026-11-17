@@ -50,7 +50,41 @@ const launch=document.getElementById('launch');
 const stop=document.getElementById('stop');
 const place=document.getElementById('place');
 const external=document.getElementById('external');
-const playerUrl=()=> 'https://fc.vspo.jp/gallery/'+episode.value;
+const validPage = raw => {
+  try {
+    const parsed = new URL(raw);
+    if (parsed.protocol !== 'https:' || parsed.host !== 'fc.vspo.jp' || parsed.username || parsed.password) return null;
+    if (!/^\/(?:ja\/|en\/)?gallery\/radio[1-9][0-9]*$/.test(parsed.pathname)) return null;
+    return parsed.origin + parsed.pathname;
+  } catch { return null; }
+};
+const playerUrl = () => validPage(episode.value) || (/^radio[1-9][0-9]*$/.test(episode.value)
+  ? 'https://fc.vspo.jp/gallery/' + episode.value : 'https://fc.vspo.jp/gallery/radio118');
+async function loadCatalog() {
+  try {
+    const response = await fetch('./catalog.json', {cache: 'no-store', credentials: 'omit'});
+    if (!response.ok) return;
+    const catalog = await response.json();
+    if (!Array.isArray(catalog.items)) return;
+    const options = [];
+    for (const item of catalog.items) {
+      const url = validPage(item?.url);
+      if (!url || typeof item.title !== 'string') continue;
+      const option = document.createElement('option');
+      option.value = url;
+      option.textContent = (item.title + ' · ' + (item.date || '公開日未登録')).slice(0,180);
+      options.push(option);
+    }
+    if (!options.length) return;
+    const requested = new URLSearchParams(location.search).get('episode');
+    const selected = /^radio[1-9][0-9]*$/.test(requested || '') ? requested : null;
+    episode.replaceChildren(...options);
+    const target = options.find(x => x.value.endsWith('/' + selected));
+    if (target) episode.value = target.value;
+    external.href = playerUrl();
+  } catch { /* Offline fallback: keep the three built-in options. */ }
+}
+void loadCatalog();
 episode.addEventListener('change',()=>{
   external.href=playerUrl();
   place.replaceChildren(document.createElement('p')).firstChild.textContent='エピソードを選択して再試行してください。';
