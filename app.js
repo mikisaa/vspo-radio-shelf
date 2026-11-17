@@ -1,4 +1,4 @@
-import {INITIAL_CATALOG, normalizeOfficialUrl, episodeKey, normalizeEpisode, mergeEntries, extractFromAnnouncement, extractOfficialRadioLinks, filterSort} from './core.js';
+import {INITIAL_CATALOG, normalizeOfficialUrl, episodeKey, normalizeEpisode, mergeEntries, applyBackup, extractFromAnnouncement, extractOfficialRadioLinks, filterSort} from './core.js';
 
 const STORAGE_KEY = 'radio-shelf-v1';
 const $ = (selector, root = document) => root.querySelector(selector);
@@ -144,15 +144,10 @@ async function importBackup(file) {
   if (file.size > 2 * 1024 * 1024) return toast('バックアップは2MB以下のJSONファイルを選択してください');
   try {
     const payload = JSON.parse(await file.text());
-    if (!payload || payload.app !== 'radio-shelf' || payload.version !== 1 || !Array.isArray(payload.entries) || payload.entries.length > 10000) throw new Error('backup format');
-    const safe = payload.entries.map(e => normalizeEpisode(e, e?.source)).filter(Boolean);
-    const merged = mergeEntries(state.entries, safe, 'local');
-    // Import status and notes explicitly, while keeping the existing URL if same key.
-    const map = new Map(merged.entries.map(e => [e.key, e]));
-    for (const entry of safe) map.set(entry.key, {...map.get(entry.key), ...entry});
-    state.entries = [...map.values()];
-    state.hidden = [...new Set([...state.hidden, ...(Array.isArray(payload.hidden) ? payload.hidden.filter(k => /^radio\d+$/.test(k)) : [])])];
-    persist(); render(); toast(`バックアップを取り込みました（${safe.length}件）`);
+    const restored = applyBackup(state, payload, INITIAL_CATALOG);
+    state.entries = restored.entries;
+    state.hidden = restored.hidden;
+    persist(); render(); toast(`バックアップを取り込みました（${restored.importedCount}件）`);
   } catch { toast('対応していないJSON形式です'); }
 }
 function extractNotice() {
