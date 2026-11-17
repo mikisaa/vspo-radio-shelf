@@ -18,8 +18,8 @@ textarea:focus-visible, select:focus-visible, summary:focus-visible { outline-co
 .ambient-a { background: #ff8bb9; }
 .ambient-b { background: #bca1ff; }
 .app-shell { max-width: 1100px; }
-.topbar { height: 100px; }
-.brand-mark { width: 50px; height: 50px; background: none; border-radius: 15px; overflow: hidden; box-shadow: 0 7px 20px #b96fac35; }
+.topbar { min-height: 88px; padding: 8px 0; }
+.brand-mark { width: 50px; height: 50px; background: none; border-radius: 15px; overflow: hidden; box-shadow: 0 7px 20px #b96fac35; flex-shrink: 0; }
 .brand-mark img { width: 100%; height: 100%; object-fit: cover; }
 .brand-name { font-size: 19px; color: #4a3b5e; letter-spacing: .07em; }
 .brand-name span { color: #ed61a4; }
@@ -118,11 +118,13 @@ footer p { color: #998da8; }
   .episode-controls { border-color: #f1e8f3; }
 }
 @media (max-width: 600px) {
-  .app-shell { padding: 0 16px; }
-  .topbar { height: 78px; }
-  .brand-mark { width: 44px; height: 44px; border-radius: 13px; }
-  .brand-name { font-size: 16px; }
+  .app-shell { padding: max(12px, env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px)) 0 max(16px, env(safe-area-inset-left, 0px)); }
+  .topbar { min-height: 76px; padding: 6px 0; align-items: center; }
+  .brand { min-width: 0; gap: 10px; }
+  .brand-mark { width: 44px; height: 44px; border-radius: 13px; flex-shrink: 0; }
+  .brand-name { font-size: 15px; line-height: 1.15; }
   .brand-name small { font-size: 7px; letter-spacing: .12em; }
+  .icon-button { flex-shrink: 0; }
   .hero { min-height: 310px; padding: 27px 22px; border-radius: 22px; }
   .hero p { max-width: 270px; font-size: 12px; }
   .hero-decoration { top: 46%; right: -142px; opacity: .18; transform: translateY(-50%) scale(.75); }
@@ -137,6 +139,6 @@ footer p { color: #998da8; }
   .play-link { padding: 8px 14px; }
 }
 /* Distinct non-official wordmark; avoid overflow for Japanese title. */
-.brand-name { font-size: 18px; letter-spacing: .015em; white-space: nowrap; }
-.brand-name small { font-size: 8px; letter-spacing: .09em; }
-@media (max-width: 600px) { .brand-name { font-size: 15px; } .brand-name small { font-size: 7px; letter-spacing: .03em; } }
+.brand-name { font-size: 18px; letter-spacing: .015em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.brand-name small { font-size: 8px; letter-spacing: .09em; overflow: hidden; text-overflow: ellipsis; }
+@media (max-width: 600px) { .brand-name { font-size: 15px; line-height: 1.15; } .brand-name small { font-size: 7px; letter-spacing: .03em; } }
