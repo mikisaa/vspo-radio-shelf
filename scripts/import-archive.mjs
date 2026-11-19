@@ -1,11 +1,21 @@
-/** Merge manually or publicly confirmed radio page URLs into the shared catalog.
- * Never signs in, crawls member pages, downloads media, or guesses unconfirmed links.
- * Usage: node scripts/import-archive.mjs path/to/archive-candidates.json [--write]
+/** Merge manually or publicly confirmed radio page URLs and metadata into the shared catalog.
+ * Never signs in, crawls member pages, downloads media, or guesses unconfirmed links/hosts.
+ *
+ * Usage:
+ *   node scripts/import-archive.mjs path/to/archive-candidates.json [--write]
+ *   node scripts/import-archive.mjs --url https://fc.vspo.jp/gallery/radio119 --title "【第76回】...【出演者】" [--hosts "..."] [--date YYYY-MM-DD] [--write]
  */
 import fs from 'node:fs';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
-import {normalizeOfficialUrl, episodeKey, cleanDate, cleanText} from '../core.js';
+import {
+  normalizeOfficialUrl,
+  episodeKey,
+  cleanDate,
+  cleanText,
+  canUpgradeProvisionalTitle,
+  splitOfficialDisplayTitle
+} from '../core.js';
 
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const defaultCatalog = path.join(projectRoot, 'catalog.json');
@@ -33,29 +43,40 @@ export function mergeArchive(catalog, source) {
     if (accepted.has(key)) continue;
     accepted.add(key);
     const rawTitle = typeof item.title === 'string' ? item.title.trim() : '';
-    if (rawTitle.length > 120) { errors.push(`${location}: タイトルが120文字を超えています`); continue; }
+    if (rawTitle.length > 160) { errors.push(`${location}: タイトルが長すぎます`); continue; }
+    const split = splitOfficialDisplayTitle(rawTitle, typeof item.hosts === 'string' ? item.hosts : '');
+    if (split.conflict) {
+      errors.push(`${location}: タイトル末尾の出演者（${split.bracketHosts}）と hosts（${split.hosts}）が一致しません`);
+      continue;
+    }
+    if (split.title.length > 120) { errors.push(`${location}: タイトルが120文字を超えています`); continue; }
     if (item.date && !cleanDate(item.date)) { errors.push(`${location}: 日付は YYYY-MM-DD`); continue; }
     // Do not publish private notes or the contents of member-only radio episodes.
     if ('notes' in item && item.notes) { errors.push(`${location}: notes は収録しません（非公開情報防止）`); continue; }
     const incoming = {
       url,
-      title: cleanText(rawTitle, 120),
+      title: split.title,
       date: cleanDate(item.date || ''),
-      hosts: cleanText(item.hosts || '', 160),
+      hosts: split.hosts,
       notes: ''
     };
     if (known.has(key)) {
       const at = known.get(key);
       const existing = result[at];
-      // The existing reference wins; never overwrite a confirmed title or date silently.
+      // Confirmed values win; fill missing fields and upgrade provisional titles (e.g. "第76回ラジオ" -> "【第76回】<番組名>").
       const changes = {};
-      for (const field of ['title', 'date', 'hosts']) {
+      for (const field of ['date', 'hosts']) {
         if (!existing[field] && incoming[field]) changes[field] = incoming[field];
-        if (existing[field] && incoming[field] && existing[field] !== incoming[field] &&
-          !(field === 'title' && /^ラジオ（radio\d+）$/.test(existing[field]))) {
+        else if (existing[field] && incoming[field] && existing[field] !== incoming[field]) {
           conflicts.push(`${location}: ${key} の ${field} は既存値と異なります（保持）`);
         }
-        if (field === 'title' && /^ラジオ（radio\d+）$/.test(existing[field]) && rawTitle) changes.title = incoming.title;
+      }
+      if (!existing.title && incoming.title) {
+        changes.title = incoming.title;
+      } else if (incoming.title && canUpgradeProvisionalTitle(existing.title, incoming.title)) {
+        changes.title = incoming.title;
+      } else if (existing.title && incoming.title && existing.title !== incoming.title) {
+        conflicts.push(`${location}: ${key} の title は既存値と異なります（保持）`);
       }
       if (Object.keys(changes).length) { result[at] = {...existing, ...changes}; enriched++; }
     } else {
@@ -105,7 +126,7 @@ export function validateCatalogIntegrity(previousCatalog, nextCatalog) {
       if (prev.notes && after.notes !== prev.notes) throw new Error(`既存エピソード ${key} の notes が変更されています。`);
       if (prev.date && after.date !== prev.date) throw new Error(`既存エピソード ${key} の date が変更されています。`);
       if (prev.hosts && after.hosts !== prev.hosts) throw new Error(`既存エピソード ${key} の hosts が変更されています。`);
-      if (prev.title && !/^ラジオ（radio\d+）$/.test(prev.title) && after.title !== prev.title) {
+      if (prev.title && after.title !== prev.title && !canUpgradeProvisionalTitle(prev.title, after.title)) {
         throw new Error(`既存エピソード ${key} の title が変更されています。`);
       }
     }
@@ -174,19 +195,92 @@ export function stagePagesSite(sourceDir = projectRoot, outDir = path.join(proje
   return {outDir, catalogCount: stagedCatalog.items.length, version: stagedCatalog.version};
 }
 
+export function validateManualEnrichInputs({url = '', title = '', hosts = '', date = ''} = {}) {
+  const u = String(url || '').trim();
+  const t = String(title || '').trim();
+  const h = String(hosts || '').trim();
+  const d = String(date || '').trim();
+
+  if (!u && !t && !h && !d) return null;
+  if (!u) {
+    throw new Error('手動補完では confirmed_url（公式ラジオ個別URL）の指定が必須です。');
+  }
+  const normalizedUrl = normalizeOfficialUrl(u);
+  if (!normalizedUrl) {
+    throw new Error('confirmed_url には https://fc.vspo.jp/gallery/radio番号 のみを指定してください。');
+  }
+  if (!t && !h && !d) {
+    throw new Error('手動補完では confirmed_title、confirmed_hosts、date のいずれか1つ以上を指定してください。');
+  }
+  if (d && !cleanDate(d)) {
+    throw new Error('日付は実在する YYYY-MM-DD 形式で指定してください。');
+  }
+  const split = splitOfficialDisplayTitle(t, h);
+  if (split.conflict) {
+    throw new Error(`タイトル末尾の出演者（${split.bracketHosts}）と confirmed_hosts（${split.hosts}）が一致しません。`);
+  }
+  if (split.title.length > 120) {
+    throw new Error('タイトルが120文字を超えています。');
+  }
+  if (split.hosts.length > 160) {
+    throw new Error('出演者名が160文字を超えています。');
+  }
+  return {
+    key: episodeKey(normalizedUrl),
+    url: normalizedUrl,
+    title: split.title,
+    hosts: split.hosts,
+    date: d ? cleanDate(d) : ''
+  };
+}
+
+export function parseCliArgs(args) {
+  let write = false;
+  let candidatesPath = null;
+  const inline = {url: '', title: '', hosts: '', date: ''};
+  let hasInline = false;
+
+  for (let i = 0; i < args.length; i++) {
+    const a = args[i];
+    if (a === '--write') { write = true; continue; }
+    if (a === '--url' || a === '--title' || a === '--hosts' || a === '--date') {
+      const val = args[++i];
+      if (val === undefined) throw new Error(`${a} の値を指定してください。`);
+      inline[a.slice(2)] = val;
+      hasInline = true;
+      continue;
+    }
+    if (a.startsWith('--')) throw new Error(`不明なオプションです: ${a}`);
+    if (candidatesPath) throw new Error('候補ファイルは1つだけ指定してください。');
+    candidatesPath = a;
+  }
+
+  if (hasInline && candidatesPath) {
+    throw new Error('JSONファイル指定と --url 直接指定は同時に使えません。');
+  }
+  if (!hasInline && !candidatesPath) {
+    return null;
+  }
+  return {write, candidatesPath, inlineItem: hasInline ? inline : null};
+}
+
 function main() {
-  const args = process.argv.slice(2);
-  const candidatesPath = args.find(a => !a.startsWith('--'));
-  if (!candidatesPath || args.some(a => a.startsWith('--') && a !== '--write')) {
-    console.error('使い方: node scripts/import-archive.mjs archive-candidates.json [--write]');
-    process.exitCode = 2; return;
+  const parsed = parseCliArgs(process.argv.slice(2));
+  if (!parsed) {
+    console.error('使い方:\n  node scripts/import-archive.mjs archive-candidates.json [--write]\n  node scripts/import-archive.mjs --url https://fc.vspo.jp/gallery/radio119 --title "【第76回】...【出演者】" [--hosts "..."] [--date YYYY-MM-DD] [--write]');
+    process.exitCode = 2;
+    return;
   }
   const readJSON = p => JSON.parse(fs.readFileSync(p, 'utf8'));
   const previousCatalog = readJSON(defaultCatalog);
-  const {catalog, summary} = mergeArchive(previousCatalog, readJSON(candidatesPath));
+  const candidateSource = parsed.inlineItem ? {items: [parsed.inlineItem]} : readJSON(parsed.candidatesPath);
+  const {catalog, summary} = mergeArchive(previousCatalog, candidateSource);
   console.log(JSON.stringify(summary, null, 2));
   if (summary.conflicts.length) { console.warn('既存情報との相違（上書きなし）:\n' + summary.conflicts.join('\n')); }
-  if (args.includes('--write')) {
+  if (parsed.write) {
+    if (summary.conflicts.length) {
+      throw new Error('既存情報との競合が検出されたため書き込みを中止しました。');
+    }
     if (summary.added === 0 && summary.enriched === 0) {
       console.log('追加・更新対象がないため catalog.json は変更しませんでした。');
       return;

@@ -10,7 +10,14 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {execFileSync} from 'node:child_process';
 import {fileURLToPath} from 'node:url';
-import {normalizeOfficialUrl, episodeKey, cleanDate, cleanText} from '../core.js';
+import {
+  normalizeOfficialUrl,
+  episodeKey,
+  cleanDate,
+  cleanText,
+  canUpgradeProvisionalTitle,
+  splitOfficialDisplayTitle
+} from '../core.js';
 import {mergeArchive, validateCatalogIntegrity, writeCatalogAtomically} from './import-archive.mjs';
 
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -188,25 +195,32 @@ export function parseNewsArticle(html, fallbackDate = '', {now = new Date()} = {
     date = parseAndValidatePublishDate(fallbackDate, {now, strictInvalidToken: true});
   }
 
-  // 3) Title: never invent show names or confuse URL radioN with episode round number.
+  // 3) Title & Hosts: never invent show names/cast or confuse URL radioN with episode round number.
+  //    Extract official show title / cast ONLY when the full official bracketed format is explicitly present.
   let title = '';
+  let hosts = '';
+  const fullBracketedMatch = visibleBodyText.match(/(【第\s*[0-9０-９]+\s*回】[^【】\r\n]{2,80}【[^【】\r\n]{1,120}】)/);
   const explicitShowMatch = visibleBodyText.match(/(【第\s*[0-9０-９]+\s*回】[^\s【】]{2,80})/);
   const roundMatch = visibleBodyText.match(/第\s*([0-9０-９]+)\s*回\s*ラジオ/);
-  if (explicitShowMatch) {
-    title = cleanText(explicitShowMatch[1].normalize('NFKC'), 120);
+  if (fullBracketedMatch) {
+    const split = splitOfficialDisplayTitle(fullBracketedMatch[1]);
+    title = split.title;
+    hosts = split.hosts;
+  } else if (explicitShowMatch) {
+    const split = splitOfficialDisplayTitle(explicitShowMatch[1]);
+    title = split.title;
   } else if (roundMatch) {
     title = `第${roundMatch[1].normalize('NFKC')}回ラジオ`;
   } else {
     title = `ラジオ（${key}）`;
   }
 
-  // 4) Hosts: public NEWS does not provide structured episode cast. Never guess.
   return {
     key,
     url,
     title,
     date,
-    hosts: ''
+    hosts
   };
 }
 
@@ -348,12 +362,14 @@ export async function syncCatalogFromPublicNews({
   return withCatalogLock(catalogPath, async () => {
     const currentNow = now();
     const currentCatalog = readAndValidateExistingCatalog(catalogPath);
-    const knownKeys = new Set(currentCatalog.items.map(item => episodeKey(item.url)));
+    const existingByKey = new Map(currentCatalog.items.map(item => [episodeKey(item.url), item]));
 
     const listHtml = await fetchPublicHtml(listUrl, {fetchImpl, timeoutMs});
     const articles = parseNewsList(listHtml, {now: currentNow}).slice(0, Math.max(1, maxArticles));
 
     const discovered = [];
+    const addedKeys = [];
+    const enrichedKeys = [];
     const seenCandidateKeys = new Set();
     const checkedArticles = [];
     const skippedKnown = [];
@@ -365,16 +381,24 @@ export async function syncCatalogFromPublicNews({
       checkedArticles.push(article.articleUrl);
       if (!extracted) continue;
 
-      if (knownKeys.has(extracted.key)) {
-        skippedKnown.push(extracted.key);
-        consecutiveKnown++;
-        if (earlyStopKnownCount > 0 && consecutiveKnown >= earlyStopKnownCount) break;
-        continue;
+      if (existingByKey.has(extracted.key)) {
+        const existing = existingByKey.get(extracted.key);
+        const canEnrich = canUpgradeProvisionalTitle(existing.title, extracted.title)
+          || (!existing.hosts && Boolean(extracted.hosts))
+          || (!existing.date && Boolean(extracted.date));
+        if (!canEnrich) {
+          skippedKnown.push(extracted.key);
+          consecutiveKnown++;
+          if (earlyStopKnownCount > 0 && consecutiveKnown >= earlyStopKnownCount) break;
+          continue;
+        }
       }
 
       consecutiveKnown = 0;
       if (seenCandidateKeys.has(extracted.key)) continue;
       seenCandidateKeys.add(extracted.key);
+      if (existingByKey.has(extracted.key)) enrichedKeys.push(extracted.key);
+      else addedKeys.push(extracted.key);
       discovered.push({
         url: extracted.url,
         title: extracted.title,
@@ -388,7 +412,10 @@ export async function syncCatalogFromPublicNews({
         status: 'no_updates',
         updated: false,
         added: 0,
+        enriched: 0,
         addedKeys: [],
+        enrichedKeys: [],
+        touchedKeys: [],
         total: currentCatalog.items.length,
         checkedArticles,
         skippedKnown
@@ -404,7 +431,10 @@ export async function syncCatalogFromPublicNews({
         status: 'no_updates',
         updated: false,
         added: 0,
+        enriched: 0,
         addedKeys: [],
+        enrichedKeys: [],
+        touchedKeys: [],
         total: currentCatalog.items.length,
         checkedArticles,
         skippedKnown
@@ -419,11 +449,15 @@ export async function syncCatalogFromPublicNews({
       writeCatalogAtomically(catalogPath, nextCatalog);
     }
 
+    const touchedKeys = [...addedKeys, ...enrichedKeys];
     return {
       status: write ? 'updated' : 'dry_run_updates',
       updated: Boolean(write),
       added: summary.added,
-      addedKeys: discovered.map(d => episodeKey(d.url)),
+      enriched: summary.enriched,
+      addedKeys,
+      enrichedKeys,
+      touchedKeys,
       addedItems: discovered,
       total: nextCatalog.items.length,
       version: nextCatalog.version,
@@ -485,7 +519,7 @@ export async function publishCatalogUpdate({
       now
     });
 
-    if (!syncResult.updated || syncResult.added === 0) {
+    if (!syncResult.updated || (syncResult.added === 0 && syncResult.enriched === 0)) {
       return {
         status: 'no_updates',
         pushed: false,
@@ -511,9 +545,11 @@ export async function publishCatalogUpdate({
       };
     }
 
-    const keysLabel = syncResult.addedKeys.join(', ');
+    const targetKeys = syncResult.touchedKeys?.length ? syncResult.touchedKeys : syncResult.addedKeys;
+    const keysLabel = targetKeys.join(', ');
+    const actionVerb = syncResult.added > 0 ? 'auto-add' : 'auto-enrich';
     git(['add', 'catalog.json']);
-    git(['commit', '-m', `chore(catalog): auto-add ${keysLabel} from public news`]);
+    git(['commit', '-m', `chore(catalog): ${actionVerb} ${keysLabel} from public news`]);
     const commitSha = git(['rev-parse', 'HEAD']);
 
     try {

@@ -11,6 +11,21 @@ on:
         required: false
         default: false
         type: boolean
+      confirmed_url:
+        description: 'Optional: confirmed official episode URL to enrich (e.g. https://fc.vspo.jp/gallery/radio119)'
+        required: false
+        default: ''
+        type: string
+      confirmed_title:
+        description: 'Optional: confirmed full title (e.g. 【第76回】番組名【出演者】 or 【第76回】番組名)'
+        required: false
+        default: ''
+        type: string
+      confirmed_hosts:
+        description: 'Optional: confirmed hosts separated by / (leave blank if included in title brackets)'
+        required: false
+        default: ''
+        type: string
 
 # Least privilege by default; write scopes are granted per job only where required.
 permissions:
@@ -29,6 +44,7 @@ jobs:
     outputs:
       pushed: ${{ steps.sync.outputs.pushed }}
       added_keys: ${{ steps.sync.outputs.added_keys }}
+      expected_items: ${{ steps.sync.outputs.expected_items }}
       commit_sha: ${{ steps.sync.outputs.commit_sha }}
       pages_build_type: ${{ steps.preflight.outputs.pages_build_type }}
     steps:
@@ -68,12 +84,77 @@ jobs:
         id: sync
         env:
           DRY_RUN: ${{ inputs.dry_run == true }}
+          CONFIRMED_URL: ${{ inputs.confirmed_url }}
+          CONFIRMED_TITLE: ${{ inputs.confirmed_title }}
+          CONFIRMED_HOSTS: ${{ inputs.confirmed_hosts }}
         run: |
+          HAS_MANUAL_INPUT=$(node -e '
+            import("./scripts/import-archive.mjs").then(m => {
+              const v = m.validateManualEnrichInputs({
+                url: process.env.CONFIRMED_URL,
+                title: process.env.CONFIRMED_TITLE,
+                hosts: process.env.CONFIRMED_HOSTS
+              });
+              process.stdout.write(v ? "true" : "false");
+            }).catch(err => {
+              console.error(err.message);
+              process.exit(1);
+            });
+          ')
+
+          if [ "${HAS_MANUAL_INPUT}" = "true" ]; then
+            if [ "${DRY_RUN}" = "true" ]; then
+              node scripts/import-archive.mjs --url "${CONFIRMED_URL}" --title "${CONFIRMED_TITLE}" --hosts "${CONFIRMED_HOSTS}"
+              echo "pushed=false" >> "$GITHUB_OUTPUT"
+              echo "added_keys=" >> "$GITHUB_OUTPUT"
+              echo "expected_items=[]" >> "$GITHUB_OUTPUT"
+              echo "commit_sha=" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git fetch origin main
+            git reset --hard origin/main
+
+            node scripts/import-archive.mjs --url "${CONFIRMED_URL}" --title "${CONFIRMED_TITLE}" --hosts "${CONFIRMED_HOSTS}" --write
+            npm test
+
+            if [ -z "$(git status --porcelain catalog.json)" ]; then
+              echo "pushed=false" >> "$GITHUB_OUTPUT"
+              echo "added_keys=" >> "$GITHUB_OUTPUT"
+              echo "expected_items=[]" >> "$GITHUB_OUTPUT"
+              echo "commit_sha=" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+
+            KEY=$(node -e 'import("./core.js").then(m => process.stdout.write(m.episodeKey(process.env.CONFIRMED_URL) || ""));')
+            EXPECTED=$(node -e '
+              import("node:fs").then(async fs => {
+                const {episodeKey} = await import("./core.js");
+                const c = JSON.parse(fs.readFileSync("./catalog.json", "utf8"));
+                const hit = c.items.find(x => episodeKey(x.url) === process.argv[1]);
+                process.stdout.write(JSON.stringify(hit ? [{key: process.argv[1], title: hit.title, hosts: hit.hosts}] : []));
+              });
+            ' "${KEY}")
+
+            git add catalog.json
+            git commit -m "chore(catalog): enrich ${KEY} with confirmed metadata"
+            git push origin HEAD:main
+            SHA=$(git rev-parse HEAD)
+            echo "pushed=true" >> "$GITHUB_OUTPUT"
+            echo "added_keys=${KEY}" >> "$GITHUB_OUTPUT"
+            echo "expected_items=${EXPECTED}" >> "$GITHUB_OUTPUT"
+            echo "commit_sha=${SHA}" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
           if [ "${DRY_RUN}" = "true" ]; then
             RESULT=$(node scripts/sync-public-news.mjs --json)
             echo "${RESULT}"
             echo "pushed=false" >> "$GITHUB_OUTPUT"
             echo "added_keys=" >> "$GITHUB_OUTPUT"
+            echo "expected_items=[]" >> "$GITHUB_OUTPUT"
             echo "commit_sha=" >> "$GITHUB_OUTPUT"
             exit 0
           fi
@@ -85,8 +166,20 @@ jobs:
           echo "${RESULT}"
 
           PUSHED=$(node -e 'const r = JSON.parse(process.argv[1]); process.stdout.write(String(Boolean(r.pushed)));' "${RESULT}")
-          ADDED_KEYS=$(node -e 'const r = JSON.parse(process.argv[1]); process.stdout.write((r.syncResult?.addedKeys || []).join(","));' "${RESULT}")
+          ADDED_KEYS=$(node -e 'const r = JSON.parse(process.argv[1]); process.stdout.write(((r.syncResult?.touchedKeys?.length ? r.syncResult.touchedKeys : r.syncResult?.addedKeys) || []).join(","));' "${RESULT}")
           COMMIT_SHA=$(node -e 'const r = JSON.parse(process.argv[1]); process.stdout.write(r.commitSha || "");' "${RESULT}")
+          EXPECTED=$(node -e '
+            import("node:fs").then(async fs => {
+              const {episodeKey} = await import("./core.js");
+              const keys = (process.argv[1] || "").split(",").filter(Boolean);
+              const c = JSON.parse(fs.readFileSync("./catalog.json", "utf8"));
+              const out = keys.map(k => {
+                const hit = c.items.find(x => episodeKey(x.url) === k);
+                return hit ? {key: k, title: hit.title, hosts: hit.hosts} : {key: k};
+              });
+              process.stdout.write(JSON.stringify(out));
+            });
+          ' "${ADDED_KEYS}")
 
           if [ "${PUSHED}" = "true" ] && [ -z "${COMMIT_SHA}" ]; then
             echo "::error::Catalog push reported true without a valid commit SHA."
@@ -95,6 +188,7 @@ jobs:
 
           echo "pushed=${PUSHED}" >> "$GITHUB_OUTPUT"
           echo "added_keys=${ADDED_KEYS}" >> "$GITHUB_OUTPUT"
+          echo "expected_items=${EXPECTED}" >> "$GITHUB_OUTPUT"
           echo "commit_sha=${COMMIT_SHA}" >> "$GITHUB_OUTPUT"
 
   deploy-pages:
@@ -123,12 +217,14 @@ jobs:
     permissions:
       contents: read
     steps:
-      - name: Verify new episodes on live GitHub Pages catalog.json
+      - name: Verify new or enriched episodes on live GitHub Pages catalog.json
         env:
           ADDED_KEYS: ${{ needs.sync-catalog.outputs.added_keys }}
+          EXPECTED_ITEMS: ${{ needs.sync-catalog.outputs.expected_items }}
         run: |
           node -e '
             const targetKeys = (process.env.ADDED_KEYS || "").split(",").map(s => s.trim()).filter(Boolean);
+            const expectedItems = JSON.parse(process.env.EXPECTED_ITEMS || "[]");
             if (targetKeys.length === 0) {
               console.error("No target keys provided to verify.");
               process.exit(1);
@@ -140,8 +236,15 @@ jobs:
                   const res = await fetch(`${url}?v=${Date.now()}`, {headers: {"Cache-Control": "no-cache"}});
                   if (res.ok) {
                     const data = await res.json();
-                    const keys = new Set((data.items || []).map(x => (x.url.match(/\/radio(\d+)$/) || [])[0]?.slice(1)));
-                    if (targetKeys.every(k => keys.has(k))) {
+                    const byKey = new Map((data.items || []).map(x => [((x.url.match(/\/radio(\d+)$/) || [])[0] || "").slice(1), x]));
+                    const allMatched = targetKeys.every(k => byKey.has(k)) && expectedItems.every(exp => {
+                      const actual = byKey.get(exp.key);
+                      if (!actual) return false;
+                      if (exp.title && actual.title !== exp.title) return false;
+                      if (exp.hosts && actual.hosts !== exp.hosts) return false;
+                      return true;
+                    });
+                    if (allMatched) {
                       console.log(`Verified on GitHub Pages (attempt ${i}): ${targetKeys.join(", ")} (total=${data.items.length})`);
                       process.exit(0);
                     }

@@ -148,6 +148,53 @@ export function cleanDate(value) {
   const ms = Date.parse(`${value}T00:00:00Z`);
   return Number.isFinite(ms) && new Date(ms).toISOString().slice(0, 10) === value ? value : '';
 }
+export const EDITABLE_FIELDS = ['title', 'date', 'hosts', 'notes'];
+export function normalizeUserEdited(raw) {
+  if (!Array.isArray(raw)) return [];
+  return [...new Set(raw.filter(f => EDITABLE_FIELDS.includes(f)))];
+}
+export function isProvisionalTitle(title) {
+  if (typeof title !== 'string') return false;
+  const t = title.trim();
+  return /^ラジオ（radio[0-9]+）$/.test(t) || /^第[0-9]+回ラジオ$/.test(t);
+}
+export function canUpgradeProvisionalTitle(existingTitle, incomingTitle) {
+  if (typeof existingTitle !== 'string' || typeof incomingTitle !== 'string') return false;
+  const prev = existingTitle.trim();
+  const next = incomingTitle.trim();
+  if (!next || prev === next || /^ラジオ（radio[0-9]+）$/.test(next)) return false;
+  if (/^ラジオ（radio[0-9]+）$/.test(prev)) return true;
+  const prevRound = prev.match(/^第([0-9]+)回ラジオ$/);
+  if (prevRound) {
+    const nextRound = next.match(/^【第([0-9]+)回】(.+)$/);
+    return Boolean(nextRound && nextRound[1] === prevRound[1] && nextRound[2].trim().length > 0);
+  }
+  return false;
+}
+export function splitOfficialDisplayTitle(rawTitle, rawHosts = '') {
+  const titleStr = typeof rawTitle === 'string' ? rawTitle.trim() : '';
+  const hostsStr = typeof rawHosts === 'string' ? rawHosts.trim() : '';
+  const m = titleStr.match(/^【第\s*([0-9０-９]+)\s*回】([^【】]+?)(?:【([^【】]+)】)?$/);
+  if (!m) {
+    return {title: cleanText(titleStr, 120), hosts: cleanText(hostsStr, 160), conflict: false};
+  }
+  const round = m[1].normalize('NFKC');
+  const showName = m[2].trim();
+  const bracketHosts = m[3] ? m[3].trim() : '';
+  if (bracketHosts && hostsStr && bracketHosts !== hostsStr) {
+    return {
+      title: cleanText(`【第${round}回】${showName}`, 120),
+      hosts: cleanText(hostsStr, 160),
+      conflict: true,
+      bracketHosts
+    };
+  }
+  return {
+    title: cleanText(`【第${round}回】${showName}`, 120),
+    hosts: cleanText(hostsStr || bracketHosts, 160),
+    conflict: false
+  };
+}
 export function normalizeEpisode(candidate, source = 'local') {
   if (!candidate || typeof candidate !== 'object') return null;
   const url = normalizeOfficialUrl(candidate.url);
@@ -160,6 +207,8 @@ export function normalizeEpisode(candidate, source = 'local') {
     lastOpened: Number.isFinite(candidate.lastOpened) && candidate.lastOpened > 0 ? candidate.lastOpened : 0,
     source: source === 'feed' ? 'feed' : 'local'
   };
+  const userEdited = normalizeUserEdited(candidate.userEdited);
+  if (userEdited.length) e.userEdited = userEdited;
   return e;
 }
 export function mergeEntries(current, incoming, source = 'feed') {
@@ -170,16 +219,25 @@ export function mergeEntries(current, incoming, source = 'feed') {
     if (!next) continue;
     const prev = merged.get(next.key);
     if (!prev) { merged.set(next.key, next); added++; continue; }
-    // User labels and private notes always win; fill missing fields and migrate untouched legacy defaults.
+    // User-edited fields and private notes always win; fill missing fields and upgrade untouched provisional/legacy values.
+    const edited = new Set(normalizeUserEdited(prev.userEdited));
     const changes = {};
-    for (const field of ['date', 'hosts']) if (!prev[field] && next[field]) changes[field] = next[field];
-    if (/^ラジオ（radio\d+）$/.test(prev.title) && next.title) changes.title = next.title;
+    for (const field of ['date', 'hosts']) {
+      if (!edited.has(field) && !prev[field] && next[field]) changes[field] = next[field];
+    }
+    if (!edited.has('title') && next.title) {
+      if (/^ラジオ（radio\d+）$/.test(prev.title) && next.title !== prev.title) {
+        changes.title = next.title;
+      } else if (source === 'feed' && canUpgradeProvisionalTitle(prev.title, next.title)) {
+        changes.title = next.title;
+      }
+    }
     const legacy = source === 'feed' ? LEGACY_CATALOG_DEFAULTS[next.key] : null;
     if (legacy) {
       if (prev.url === legacy.url && next.url && next.url !== prev.url) changes.url = next.url;
-      if (prev.title === legacy.title && next.title && next.title !== prev.title) changes.title = next.title;
-      if (prev.date === legacy.date && next.date && next.date !== prev.date) changes.date = next.date;
-      if (prev.notes === legacy.notes && next.notes && next.notes !== prev.notes) changes.notes = next.notes;
+      if (!edited.has('title') && prev.title === legacy.title && next.title && next.title !== prev.title) changes.title = next.title;
+      if (!edited.has('date') && prev.date === legacy.date && next.date && next.date !== prev.date) changes.date = next.date;
+      if (!edited.has('notes') && prev.notes === legacy.notes && next.notes && next.notes !== prev.notes) changes.notes = next.notes;
     }
     if (Object.keys(changes).length) { merged.set(next.key, {...prev, ...changes}); enriched++; }
   }
@@ -190,11 +248,17 @@ export function applyBackup(currentState, payload, catalog = INITIAL_CATALOG) {
     throw new Error('backup format');
   }
   const safe = payload.entries.map(e => normalizeEpisode(e, e?.source)).filter(Boolean);
-  const merged = mergeEntries(currentState?.entries || [], safe, 'local');
-  // Import status and notes explicitly, then migrate any untouched legacy defaults against the catalog.
+  const currentEntries = Array.isArray(currentState?.entries) ? currentState.entries : [];
+  const merged = mergeEntries(currentEntries, safe, 'local');
+  // Import status, notes, and userEdited flags explicitly, then enrich untouched provisional/legacy values against catalog.
   const map = new Map(merged.entries.map(e => [e.key, e]));
-  for (const entry of safe) map.set(entry.key, {...map.get(entry.key), ...entry});
-  const migrated = mergeEntries([...map.values()], catalog, 'feed');
+  for (const entry of safe) {
+    const base = {...map.get(entry.key), ...entry};
+    if (!entry.userEdited?.length) delete base.userEdited;
+    map.set(entry.key, base);
+  }
+  const referenceFeed = currentEntries.length ? mergeEntries(catalog, currentEntries, 'feed').entries : catalog;
+  const migrated = mergeEntries([...map.values()], referenceFeed, 'feed');
   const prevHidden = Array.isArray(currentState?.hidden) ? currentState.hidden : [];
   const nextHidden = Array.isArray(payload.hidden) ? payload.hidden.filter(k => /^radio\d+$/.test(k)) : [];
   return {

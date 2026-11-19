@@ -1,4 +1,4 @@
-import {INITIAL_CATALOG, normalizeOfficialUrl, episodeKey, normalizeEpisode, mergeEntries, applyBackup, extractFromAnnouncement, extractOfficialRadioLinks, filterSort} from './core.js';
+import {INITIAL_CATALOG, normalizeOfficialUrl, episodeKey, normalizeEpisode, normalizeUserEdited, isProvisionalTitle, splitOfficialDisplayTitle, mergeEntries, applyBackup, extractFromAnnouncement, extractOfficialRadioLinks, filterSort} from './core.js';
 
 const STORAGE_KEY = 'radio-shelf-v1';
 const $ = (selector, root = document) => root.querySelector(selector);
@@ -96,14 +96,29 @@ function saveForm(event) {
   event.preventDefault();
   const url = normalizeOfficialUrl($('#episode-url').value);
   if (!url) return showFormError('公式のラジオ個別URL（https://fc.vspo.jp/gallery/radio番号）を入力してください。');
-  const next = normalizeEpisode({url, title: $('#episode-title').value, date: $('#episode-date').value, hosts: $('#episode-hosts').value, notes: $('#episode-notes').value}, 'local');
+  const split = splitOfficialDisplayTitle($('#episode-title').value, $('#episode-hosts').value);
+  if (split.conflict) return showFormError('タイトル末尾の出演者名と出演者欄の入力内容が一致しません。');
+  const next = normalizeEpisode({url, title: split.title, date: $('#episode-date').value, hosts: split.hosts, notes: $('#episode-notes').value}, 'local');
   if (!next || !next.title) return showFormError('タイトルを入力してください。');
   const old = state.entries.find(e => e.key === state.editingKey);
   const duplicate = state.entries.find(e => e.key === next.key && e.key !== state.editingKey);
   if (duplicate && !state.hidden.includes(next.key)) return showFormError('同じ回は既に登録されています。既存の回を編集してください。');
   // Changing URL changes the key. Never delete earlier entry silently.
   if (old && old.key !== next.key) return showFormError('登録済みの回のURLは変更できません。別の回として追加してください。');
+  const edited = new Set(normalizeUserEdited(old?.userEdited));
+  if (old) {
+    for (const field of ['title', 'date', 'hosts', 'notes']) {
+      if (old[field] !== next[field]) edited.add(field);
+    }
+  } else {
+    if (!isProvisionalTitle(next.title)) edited.add('title');
+    for (const field of ['date', 'hosts', 'notes']) {
+      if (next[field]) edited.add(field);
+    }
+  }
   const merged = old ? {...old, ...next, favorite: old.favorite, heard: old.heard, lastOpened: old.lastOpened, source: old.source} : next;
+  if (edited.size) merged.userEdited = [...edited];
+  else delete merged.userEdited;
   state.entries = [...state.entries.filter(e => e.key !== next.key), merged];
   state.hidden = state.hidden.filter(k => k !== next.key);
   persist(); render(); $('#add-dialog').close(); toast(old ? '変更を保存しました' : 'ラジオを追加しました');
@@ -125,7 +140,16 @@ async function syncCatalog({quiet = false} = {}) {
     const merged = mergeEntries(state.entries, payload.items, 'feed');
     state.entries = merged.entries; state.lastSync = new Date().toISOString();
     persist(); render();
-    if (!quiet || merged.added > 0) toast(merged.added ? `カタログから${merged.added}件を追加しました` : 'カタログは最新です');
+    if (!quiet || merged.added > 0 || merged.enriched > 0) {
+      const msg = merged.added && merged.enriched
+        ? `カタログから${merged.added}件を追加・${merged.enriched}件を更新しました`
+        : merged.added
+          ? `カタログから${merged.added}件を追加しました`
+          : merged.enriched
+            ? `カタログから${merged.enriched}件の情報を補完しました`
+            : 'カタログは最新です';
+      toast(msg);
+    }
   } catch (error) {
     if (!quiet) toast('カタログを確認できませんでした。保存済みの一覧は使えます。');
     console.info('Catalog synchronization unavailable:', error.message);
