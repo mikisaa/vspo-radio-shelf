@@ -18,10 +18,10 @@ import {
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const catalogJson = JSON.parse(fs.readFileSync(path.join(rootDir, 'catalog.json'), 'utf8'));
 
-test('catalog.json と INITIAL_CATALOG が全118件（radio1〜radio118）で欠番・重複・不正値なく同期している', () => {
-  assert.equal(catalogJson.items.length, 118);
-  assert.equal(INITIAL_CATALOG.length, 118);
-  assert.deepEqual(INITIAL_CATALOG, catalogJson.items);
+test('catalog.json を共通マスタとし、初期118件を保持したまま可変件数・未確認項目にも対応する', () => {
+  assert.ok(Array.isArray(catalogJson.items));
+  assert.ok(INITIAL_CATALOG.length >= 118);
+  assert.ok(catalogJson.items.length >= INITIAL_CATALOG.length);
 
   const seenUrls = new Set();
   const seenKeys = new Set();
@@ -37,15 +37,20 @@ test('catalog.json と INITIAL_CATALOG が全118件（radio1〜radio118）で欠
     assert.ok(key && !seenKeys.has(key), `キー重複または不正: ${key}`);
     seenKeys.add(key);
 
-    assert.equal(cleanDate(item.date), item.date, `日付不正: ${item.url} -> ${item.date}`);
-    assert.equal(item.date.length, 10);
+    // 公開日・出演者は未確認（空文字）も許容し、値がある場合は形式を厳格検証する
+    assert.ok(item.date === '' || cleanDate(item.date) === item.date, `日付不正: ${item.url} -> ${item.date}`);
+    assert.equal(typeof item.hosts, 'string');
+    assert.ok(item.hosts.length <= 160);
+    assert.equal(typeof item.title, 'string');
+    assert.ok(item.title.trim().length > 0 && item.title.length <= 120, `タイトル不正: ${item.url}`);
 
-    // タイトルは回数＋公式番組名のみで末尾の【出演者】を含まないこと（二重表示防止）
-    assert.match(item.title, /^【第\d+回】(ぶいすぽっ！の雑談部今日も解散できません！|ぶいすぽっ！カフェでちょっとお時間いいですか？|ぶいすぽっ！ラジオ)$/);
-    assert.ok(item.hosts.length > 0, `出演者未設定: ${item.url}`);
-    assert.ok(!item.title.includes(item.hosts), `タイトルに出演者が残っています: ${item.url}`);
+    // 出演者が判明している回はタイトル末尾の【出演者】と二重表示しない
+    if (item.hosts) {
+      assert.ok(!item.title.endsWith(`【${item.hosts}】`), `タイトル末尾に出演者が重複しています: ${item.url}`);
+    }
   }
 
+  // 初期収録済みの radio1〜radio118 が欠落せず保持されていること
   for (let n = 1; n <= 118; n++) {
     assert.ok(seenKeys.has(`radio${n}`), `radio${n} が欠けています`);
   }
@@ -88,23 +93,24 @@ test('catalog.json と INITIAL_CATALOG が全118件（radio1〜radio118）で欠
   });
 });
 
-test('初回起動で118件を表示し、タイトル検索・出演者検索が動作する', () => {
+test('初回起動とcatalog同期で全件を表示し、タイトル検索・出演者検索が動作する', () => {
   const bootMerged = mergeEntries([], INITIAL_CATALOG, 'feed');
-  assert.equal(bootMerged.added, 118);
-  assert.equal(bootMerged.entries.length, 118);
+  assert.equal(bootMerged.entries.length, INITIAL_CATALOG.length);
 
-  const visible = filterSort(bootMerged.entries);
-  assert.equal(visible.length, 118);
-  assert.equal(visible[0].key, 'radio118');
-  assert.equal(visible[117].key, 'radio1');
+  const synced = mergeEntries(bootMerged.entries, catalogJson.items, 'feed');
+  assert.equal(synced.entries.length, catalogJson.items.length);
 
-  assert.equal(filterSort(bootMerged.entries, {search: '雑談部'}).length, 75);
-  assert.equal(filterSort(bootMerged.entries, {search: 'カフェでちょっとお時間'}).length, 23);
-  assert.deepEqual(filterSort(bootMerged.entries, {search: '第75回'}).map(e => e.key), ['radio118']);
+  const visible = filterSort(synced.entries);
+  assert.equal(visible.length, catalogJson.items.length);
 
-  const mimiHanabi = filterSort(bootMerged.entries, {search: '兎咲ミミ/蝶屋はなび'});
-  assert.deepEqual(mimiHanabi.map(e => e.key), ['radio118', 'radio117']);
-  assert.deepEqual(filterSort(bootMerged.entries, {search: 'ぶいすぽっ！運営1'}).map(e => e.key), ['radio43']);
+  assert.ok(filterSort(synced.entries, {search: '雑談部'}).length >= 75);
+  assert.ok(filterSort(synced.entries, {search: 'カフェでちょっとお時間'}).length >= 23);
+  assert.ok(filterSort(synced.entries, {search: '第75回'}).some(e => e.key === 'radio118'));
+
+  const mimiHanabi = filterSort(synced.entries, {search: '兎咲ミミ/蝶屋はなび'});
+  assert.ok(mimiHanabi.some(e => e.key === 'radio118'));
+  assert.ok(mimiHanabi.some(e => e.key === 'radio117'));
+  assert.deepEqual(filterSort(synced.entries, {search: 'ぶいすぽっ！運営1'}).map(e => e.key), ['radio43']);
 });
 
 test('既存iPhoneの旧既定値4件は正式データへ安全にマイグレーションされ、ユーザー状態・手動編集値は保持される', () => {
@@ -138,9 +144,9 @@ test('既存iPhoneの旧既定値4件は正式データへ安全にマイグレ�
   const hiddenKeys = ['radio22'];
 
   const firstSync = mergeEntries(savedOnIphone, catalogJson.items, 'feed');
-  assert.equal(firstSync.added, 114);
+  assert.equal(firstSync.added, catalogJson.items.length - 4);
   assert.equal(firstSync.enriched, 4);
-  assert.equal(firstSync.entries.length, 118);
+  assert.equal(firstSync.entries.length, catalogJson.items.length);
 
   const map = new Map(firstSync.entries.map(e => [e.key, e]));
 
@@ -177,7 +183,7 @@ test('既存iPhoneの旧既定値4件は正式データへ安全にマイグレ�
   assert.equal(r22.lastOpened, 1762000000999);
 
   const visible = firstSync.entries.filter(e => !hiddenKeys.includes(e.key));
-  assert.equal(visible.length, 117);
+  assert.equal(visible.length, catalogJson.items.length - 1);
 
   const secondSync = mergeEntries(firstSync.entries, catalogJson.items, 'feed');
   const thirdSync = mergeEntries(secondSync.entries, INITIAL_CATALOG, 'feed');
@@ -185,12 +191,12 @@ test('既存iPhoneの旧既定値4件は正式データへ安全にマイグレ�
   assert.equal(secondSync.enriched, 0);
   assert.equal(thirdSync.added, 0);
   assert.equal(thirdSync.enriched, 0);
-  assert.equal(thirdSync.entries.length, 118);
+  assert.equal(thirdSync.entries.length, catalogJson.items.length);
   assert.deepEqual(thirdSync.entries, firstSync.entries);
 });
 
 test('旧バージョンのJSONバックアップを読み込んでも互換性を保ちつつ正式データへ更新される', () => {
-  const freshBoot = mergeEntries([], INITIAL_CATALOG, 'feed');
+  const syncedState = mergeEntries([], catalogJson.items, 'feed');
   const legacyBackupPayload = {
     app: 'radio-shelf',
     version: 1,
@@ -202,9 +208,9 @@ test('旧バージョンのJSONバックアップを読み込んでも互換性�
     hidden: ['radio79']
   };
 
-  const restored = applyBackup({entries: freshBoot.entries, hidden: []}, legacyBackupPayload, INITIAL_CATALOG);
+  const restored = applyBackup({entries: syncedState.entries, hidden: []}, legacyBackupPayload, INITIAL_CATALOG);
   assert.equal(restored.importedCount, 2);
-  assert.equal(restored.entries.length, 118);
+  assert.equal(restored.entries.length, catalogJson.items.length);
   assert.deepEqual(restored.hidden, ['radio79']);
 
   const map = new Map(restored.entries.map(e => [e.key, e]));

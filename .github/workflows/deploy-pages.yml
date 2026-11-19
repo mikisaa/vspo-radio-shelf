@@ -1,0 +1,110 @@
+name: Deploy GitHub Pages
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+  workflow_call:
+    inputs:
+      ref:
+        description: 'Git ref or commit SHA to deploy'
+        required: false
+        default: main
+        type: string
+      expected_sha:
+        description: 'Exact commit SHA expected to be deployed (prevents stale github.sha deploys)'
+        required: false
+        default: ''
+        type: string
+
+# Least privilege at workflow root; elevated permissions granted only on the deploy job.
+permissions:
+  contents: read
+
+concurrency:
+  group: pages-deployment
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check Pages build type
+        id: pages_mode
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          BUILD_TYPE=$(gh api "repos/${{ github.repository }}/pages" --jq '.build_type' 2>/dev/null || echo "unknown")
+          echo "build_type=${BUILD_TYPE}" >> "$GITHUB_OUTPUT"
+          echo "Detected GitHub Pages build_type: ${BUILD_TYPE}"
+          if [ "${BUILD_TYPE}" != "workflow" ]; then
+            if [ "${{ github.event_name }}" = "push" ] && [ "${BUILD_TYPE}" = "legacy" ]; then
+              echo "::notice::Pages Source is currently 'Deploy from a branch' (legacy); branch build handles regular git push until switched to 'GitHub Actions'."
+            else
+              echo "::error::GitHub Pages Source must be set to 'GitHub Actions' (build_type=workflow), but current build_type is '${BUILD_TYPE}'."
+              exit 1
+            fi
+          fi
+
+      - name: Checkout target commit
+        if: steps.pages_mode.outputs.build_type == 'workflow'
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || 'main' }}
+
+      - name: Verify checked-out commit SHA is not stale
+        if: steps.pages_mode.outputs.build_type == 'workflow'
+        env:
+          EXPECTED_SHA: ${{ inputs.expected_sha }}
+        run: |
+          ACTUAL_SHA=$(git rev-parse HEAD)
+          echo "Deploying commit SHA: ${ACTUAL_SHA}"
+          if [ -n "${EXPECTED_SHA}" ] && [ "${ACTUAL_SHA}" != "${EXPECTED_SHA}" ]; then
+            echo "::error::Checked-out SHA (${ACTUAL_SHA}) does not match expected newly pushed SHA (${EXPECTED_SHA}). Aborting."
+            exit 1
+          fi
+
+      - name: Setup Node.js (zero external npm dependencies; no package-lock.json)
+        if: steps.pages_mode.outputs.build_type == 'workflow'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Stage and validate public static files
+        if: steps.pages_mode.outputs.build_type == 'workflow'
+        run: |
+          node -e "import('./scripts/import-archive.mjs').then(m => console.log(JSON.stringify(m.stagePagesSite('.', '_site'))))"
+
+      - name: Configure Pages
+        if: steps.pages_mode.outputs.build_type == 'workflow'
+        uses: actions/configure-pages@v5
+
+      - name: Upload Pages artifact
+        if: steps.pages_mode.outputs.build_type == 'workflow'
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+      - name: Deploy to GitHub Pages
+        if: steps.pages_mode.outputs.build_type == 'workflow'
+        id: deployment
+        uses: actions/deploy-pages@v4
+
+      - name: Confirm deployment URL when workflow mode is active
+        if: steps.pages_mode.outputs.build_type == 'workflow'
+        env:
+          PAGE_URL: ${{ steps.deployment.outputs.page_url }}
+        run: |
+          if [ -z "${PAGE_URL}" ]; then
+            echo "::error::GitHub Pages deployment did not produce a page_url."
+            exit 1
+          fi
+          echo "Successfully deployed to ${PAGE_URL}"

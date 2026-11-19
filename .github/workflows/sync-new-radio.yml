@@ -1,0 +1,155 @@
+name: Auto Sync Public Radio News
+
+on:
+  schedule:
+    # Primary automated updater: runs daily at 08:23 and 20:23 JST
+    - cron: '23 23,11 * * *'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Dry run only (do not modify catalog.json, push, or deploy)'
+        required: false
+        default: false
+        type: boolean
+
+# Least privilege by default; write scopes are granted per job only where required.
+permissions:
+  contents: read
+
+concurrency:
+  group: vspo-radio-catalog-sync
+  cancel-in-progress: false
+
+jobs:
+  sync-catalog:
+    if: github.event_name == 'workflow_dispatch' || vars.DISABLE_AUTO_SYNC != 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      pushed: ${{ steps.sync.outputs.pushed }}
+      added_keys: ${{ steps.sync.outputs.added_keys }}
+      commit_sha: ${{ steps.sync.outputs.commit_sha }}
+      pages_build_type: ${{ steps.preflight.outputs.pages_build_type }}
+    steps:
+      - name: Preflight check GitHub Pages publishing route
+        id: preflight
+        env:
+          DRY_RUN: ${{ inputs.dry_run == true }}
+          HAS_PAT: ${{ secrets.PAGES_DEPLOY_TOKEN != '' }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          BUILD_TYPE=$(gh api "repos/${{ github.repository }}/pages" --jq '.build_type' 2>/dev/null || echo "unknown")
+          echo "pages_build_type=${BUILD_TYPE}" >> "$GITHUB_OUTPUT"
+          echo "Pages build_type=${BUILD_TYPE}, has_pat=${HAS_PAT}, dry_run=${DRY_RUN}"
+          if [ "${DRY_RUN}" != "true" ] && [ "${BUILD_TYPE}" != "workflow" ] && [ "${HAS_PAT}" != "true" ]; then
+            echo "::error::GITHUB_TOKEN push cannot trigger legacy branch Pages builds. Switch Settings -> Pages -> Source to 'GitHub Actions' (recommended) or configure PAGES_DEPLOY_TOKEN before running live sync."
+            exit 1
+          fi
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          token: ${{ secrets.PAGES_DEPLOY_TOKEN || secrets.GITHUB_TOKEN }}
+
+      - name: Setup Node.js (zero external npm dependencies; no package-lock.json)
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Verify Node runtime and run unit tests
+        run: |
+          node --version
+          npm test
+
+      - name: Check public NEWS and sync catalog
+        id: sync
+        env:
+          DRY_RUN: ${{ inputs.dry_run == true }}
+        run: |
+          if [ "${DRY_RUN}" = "true" ]; then
+            RESULT=$(node scripts/sync-public-news.mjs --json)
+            echo "${RESULT}"
+            echo "pushed=false" >> "$GITHUB_OUTPUT"
+            echo "added_keys=" >> "$GITHUB_OUTPUT"
+            echo "commit_sha=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          RESULT=$(node scripts/sync-public-news.mjs --write --git-publish --json)
+          echo "${RESULT}"
+
+          PUSHED=$(node -e 'const r = JSON.parse(process.argv[1]); process.stdout.write(String(Boolean(r.pushed)));' "${RESULT}")
+          ADDED_KEYS=$(node -e 'const r = JSON.parse(process.argv[1]); process.stdout.write((r.syncResult?.addedKeys || []).join(","));' "${RESULT}")
+          COMMIT_SHA=$(node -e 'const r = JSON.parse(process.argv[1]); process.stdout.write(r.commitSha || "");' "${RESULT}")
+
+          if [ "${PUSHED}" = "true" ] && [ -z "${COMMIT_SHA}" ]; then
+            echo "::error::Catalog push reported true without a valid commit SHA."
+            exit 1
+          fi
+
+          echo "pushed=${PUSHED}" >> "$GITHUB_OUTPUT"
+          echo "added_keys=${ADDED_KEYS}" >> "$GITHUB_OUTPUT"
+          echo "commit_sha=${COMMIT_SHA}" >> "$GITHUB_OUTPUT"
+
+  deploy-pages:
+    # Explicit Pages deployment from the newly pushed commit SHA (never assumes GITHUB_TOKEN push fires another workflow)
+    needs: sync-catalog
+    if: needs.sync-catalog.outputs.pushed == 'true' && needs.sync-catalog.outputs.pages_build_type == 'workflow'
+    uses: ./.github/workflows/deploy-pages.yml
+    with:
+      ref: ${{ needs.sync-catalog.outputs.commit_sha }}
+      expected_sha: ${{ needs.sync-catalog.outputs.commit_sha }}
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+
+  verify-pages:
+    needs: [sync-catalog, deploy-pages]
+    if: >-
+      always() &&
+      needs.sync-catalog.outputs.pushed == 'true' &&
+      (
+        needs.deploy-pages.result == 'success' ||
+        (needs.sync-catalog.outputs.pages_build_type != 'workflow' && needs.deploy-pages.result == 'skipped')
+      )
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Verify new episodes on live GitHub Pages catalog.json
+        env:
+          ADDED_KEYS: ${{ needs.sync-catalog.outputs.added_keys }}
+        run: |
+          node -e '
+            const targetKeys = (process.env.ADDED_KEYS || "").split(",").map(s => s.trim()).filter(Boolean);
+            if (targetKeys.length === 0) {
+              console.error("No target keys provided to verify.");
+              process.exit(1);
+            }
+            const url = "https://mikisaa.github.io/vspo-radio-shelf/catalog.json";
+            (async () => {
+              for (let i = 1; i <= 18; i++) {
+                try {
+                  const res = await fetch(`${url}?v=${Date.now()}`, {headers: {"Cache-Control": "no-cache"}});
+                  if (res.ok) {
+                    const data = await res.json();
+                    const keys = new Set((data.items || []).map(x => (x.url.match(/\/radio(\d+)$/) || [])[0]?.slice(1)));
+                    if (targetKeys.every(k => keys.has(k))) {
+                      console.log(`Verified on GitHub Pages (attempt ${i}): ${targetKeys.join(", ")} (total=${data.items.length})`);
+                      process.exit(0);
+                    }
+                  }
+                } catch {}
+                await new Promise(r => setTimeout(r, 10000));
+              }
+              console.error(`Timed out waiting for ${targetKeys.join(", ")} on ${url}`);
+              process.exit(1);
+            })();
+          '

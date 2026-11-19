@@ -1,5 +1,8 @@
 # Raw extracted candidate lists are local-only and must never be committed.
 archive-candidates*.json
 *.local.json
+*.lock
+*.tmp
+_site/
 .env
 .env.*
