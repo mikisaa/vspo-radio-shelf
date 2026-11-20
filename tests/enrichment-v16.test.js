@@ -21,9 +21,10 @@ const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const prodCatalogPath = path.join(rootDir, 'catalog.json');
 const prodCatalog = JSON.parse(fs.readFileSync(prodCatalogPath, 'utf8'));
 
-test('v1.6: 現在の catalog.json が119件（radio1〜radio119）を保持し、既存118件が無変更、radio119も未確認項目が空欄維持されていること', () => {
-  assert.equal(prodCatalog.items.length, 119);
+test('v1.6: catalog.json が119件以上・URL重複なし・既存118件保持・確認済みradio119が正しいこと', () => {
+  assert.ok(prodCatalog.items.length >= 119, '登録件数が119件を下回っています');
   const byKey = new Map(prodCatalog.items.map(item => [episodeKey(item.url), item]));
+  assert.equal(byKey.size, prodCatalog.items.length, 'URLキーの重複が存在します');
   for (let n = 1; n <= 119; n++) {
     assert.ok(byKey.has(`radio${n}`), `radio${n} が存在しません`);
   }
@@ -31,12 +32,12 @@ test('v1.6: 現在の catalog.json が119件（radio1〜radio119）を保持し�
   for (const initItem of INITIAL_CATALOG) {
     assert.deepEqual(byKey.get(episodeKey(initItem.url)), initItem);
   }
-  // radio119 の仮タイトル・公開日・URL・出演者空欄維持確認
+  // 公式ページのスクリーンショットで確認したradio119の正式情報を維持する
   assert.deepEqual(byKey.get('radio119'), {
     url: 'https://fc.vspo.jp/gallery/radio119',
-    title: '第76回ラジオ',
+    title: '【第76回】ぶいすぽっ！の雑談部今日も解散できません！',
     date: '2026-11-19',
-    hosts: '',
+    hosts: '兎咲ミミ/紡木こかげ',
     notes: ''
   });
   // Service Worker v8 更新確認
@@ -233,9 +234,16 @@ test('v1.6: 会員ページ確認後の手動補完（import-archive.mjs）お�
   t.after(() => fs.rmSync(tmp, {recursive: true, force: true}));
   const catalogPath = path.join(tmp, 'catalog.json');
   fs.copyFileSync(prodCatalogPath, catalogPath);
+  // 本番radio119は既に正式補完済み。仮登録→正式補完のテストは一時コピーのみ初期状態に戻す。
+  const provisionalFixture = JSON.parse(fs.readFileSync(catalogPath, 'utf8'));
+  const provisional119 = provisionalFixture.items.find(x => episodeKey(x.url) === 'radio119');
+  assert.ok(provisional119, 'テスト用のradio119が見つかりません');
+  provisional119.title = '第76回ラジオ';
+  provisional119.hosts = '';
+  fs.writeFileSync(catalogPath, `${JSON.stringify(provisionalFixture, null, 2)}\n`, 'utf8');
 
   // CLI パーサー検証
-  const cli = parseCliArgs(['--url', 'https://fc.vspo.jp/gallery/radio119', '--title', '【第76回】ぶいすぽっ！の雑談部今日も解散できません！【花芽すみれ/橘ひなの】', '--write']);
+  const cli = parseCliArgs(['--url', 'https://fc.vspo.jp/gallery/radio119', '--title', '【第76回】ぶいすぽっ！の雑談部今日も解散できません！【兎咲ミミ/紡木こかげ】', '--write']);
   assert.equal(cli.write, true);
   assert.equal(cli.inlineItem.url, 'https://fc.vspo.jp/gallery/radio119');
 
@@ -244,7 +252,7 @@ test('v1.6: 会員ページ確認後の手動補完（import-archive.mjs）お�
   const {catalog: enriched119, summary: sum1} = mergeArchive(beforeCatalog, {items: [cli.inlineItem]});
   assert.equal(sum1.added, 0);
   assert.equal(sum1.enriched, 1);
-  assert.equal(sum1.total, 119);
+  assert.equal(sum1.total, beforeCatalog.items.length);
   assert.deepEqual(sum1.conflicts, []);
   assert.equal(validateCatalogIntegrity(beforeCatalog, enriched119), true);
 
@@ -253,7 +261,7 @@ test('v1.6: 会員ページ確認後の手動補完（import-archive.mjs）お�
     url: 'https://fc.vspo.jp/gallery/radio119',
     title: '【第76回】ぶいすぽっ！の雑談部今日も解散できません！',
     date: '2026-11-19',
-    hosts: '花芽すみれ/橘ひなの',
+    hosts: '兎咲ミミ/紡木こかげ',
     notes: ''
   });
 
