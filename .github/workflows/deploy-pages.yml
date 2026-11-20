@@ -78,6 +78,10 @@ jobs:
         with:
           node-version: '22'
 
+      - name: Run tests before Pages deployment
+        if: steps.pages_mode.outputs.build_type == 'workflow'
+        run: npm test
+
       - name: Stage and validate public static files
         if: steps.pages_mode.outputs.build_type == 'workflow'
         run: |
