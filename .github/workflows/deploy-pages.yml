@@ -27,14 +27,14 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  deploy:
+  build:
     permissions:
       contents: read
-      pages: write
-      id-token: write
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+      pages: read
+    outputs:
+      build_type: ${{ steps.pages_mode.outputs.build_type }}
+      artifact_id: ${{ steps.upload.outputs.artifact_id }}
+      artifact_name: ${{ steps.artifact_name.outputs.name }}
     runs-on: ubuntu-latest
     steps:
       - name: Check Pages build type
@@ -91,19 +91,60 @@ jobs:
         if: steps.pages_mode.outputs.build_type == 'workflow'
         uses: actions/configure-pages@v5
 
+      - name: Select artifact name for this build attempt
+        id: artifact_name
+        if: steps.pages_mode.outputs.build_type == 'workflow'
+        run: echo "name=github-pages-${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_OUTPUT"
+
       - name: Upload Pages artifact
+        id: upload
         if: steps.pages_mode.outputs.build_type == 'workflow'
         uses: actions/upload-pages-artifact@v3
         with:
+          name: ${{ steps.artifact_name.outputs.name }}
           path: _site
 
+  deploy:
+    needs: build
+    if: needs.build.outputs.build_type == 'workflow'
+    permissions:
+      contents: read
+      actions: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Wait for uploaded Pages artifact to become visible
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ARTIFACT_ID: ${{ needs.build.outputs.artifact_id }}
+          ARTIFACT_NAME: ${{ needs.build.outputs.artifact_name }}
+        run: |
+          if [[ ! "${ARTIFACT_ID}" =~ ^[0-9]+$ ]] || [ -z "${ARTIFACT_NAME}" ]; then
+            echo "::error::Missing uploaded Pages artifact metadata."
+            exit 1
+          fi
+          for attempt in $(seq 1 12); do
+            if timeout 10s gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}/artifacts?name=${ARTIFACT_NAME}" --jq '.artifacts[] | select(.expired == false) | .id' | grep -Fxq "${ARTIFACT_ID}"; then
+              echo "Pages artifact ${ARTIFACT_ID} is visible (attempt ${attempt})."
+              exit 0
+            fi
+            echo "Waiting for Pages artifact metadata (attempt ${attempt}/12)."
+            if [ "${attempt}" -lt 12 ]; then sleep 5; fi
+          done
+          echo "::error::Uploaded Pages artifact did not become visible within the retry limit."
+          exit 1
+
       - name: Deploy to GitHub Pages
-        if: steps.pages_mode.outputs.build_type == 'workflow'
         id: deployment
         uses: actions/deploy-pages@v4
+        with:
+          artifact_name: ${{ needs.build.outputs.artifact_name }}
 
       - name: Confirm deployment URL when workflow mode is active
-        if: steps.pages_mode.outputs.build_type == 'workflow'
         env:
           PAGE_URL: ${{ steps.deployment.outputs.page_url }}
         run: |

@@ -242,6 +242,7 @@ jobs:
       expected_sha: ${{ needs.sync-catalog.outputs.commit_sha }}
     permissions:
       contents: read
+      actions: read
       pages: write
       id-token: write
 

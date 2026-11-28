@@ -57,3 +57,14 @@ test('Pages: dry run cannot trigger recovery, stale no-update run can, and verif
   assert.match(workflow, /if: needs\.sync-catalog\.outputs\.deploy_required == 'true'/);
   assert.match(workflow, /verify-pages:[\s\S]*?ref: \$\{\{ needs\.sync-catalog\.outputs\.commit_sha \}\}[\s\S]*?node scripts\/pages-catalog-health\.mjs --verify/);
 });
+
+test('Pages: deployment waits for the completed build and exact non-expired artifact', () => {
+  const deploy = fs.readFileSync(new URL('../.github/workflows/deploy-pages.yml', import.meta.url), 'utf8');
+  const sync = fs.readFileSync(new URL('../.github/workflows/sync-new-radio.yml', import.meta.url), 'utf8');
+  assert.match(deploy, /build:[\s\S]*?artifact_id: \$\{\{ steps\.upload\.outputs\.artifact_id \}\}/);
+  assert.match(deploy, /deploy:\s+needs: build/);
+  assert.match(deploy, /actions: read/);
+  assert.match(deploy, /Wait for uploaded Pages artifact[\s\S]*?select\(\.expired == false\)[\s\S]*?grep -Fxq "\$\{ARTIFACT_ID\}"/);
+  assert.match(deploy, /uses: actions\/deploy-pages@v4[\s\S]*?artifact_name: \$\{\{ needs\.build\.outputs\.artifact_name \}\}/);
+  assert.match(sync, /deploy-pages:[\s\S]*?permissions:[\s\S]*?actions: read/);
+});
