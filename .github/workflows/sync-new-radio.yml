@@ -45,7 +45,9 @@ jobs:
       pushed: ${{ steps.sync.outputs.pushed }}
       added_keys: ${{ steps.sync.outputs.added_keys }}
       expected_items: ${{ steps.sync.outputs.expected_items }}
-      commit_sha: ${{ steps.sync.outputs.commit_sha }}
+      commit_sha: ${{ steps.pages_health.outputs.commit_sha }}
+      deploy_required: ${{ steps.pages_health.outputs.deploy_required }}
+      verify_required: ${{ steps.pages_health.outputs.verify_required }}
       pages_build_type: ${{ steps.preflight.outputs.pages_build_type }}
     steps:
       - name: Preflight check GitHub Pages publishing route
@@ -191,10 +193,49 @@ jobs:
           echo "expected_items=${EXPECTED}" >> "$GITHUB_OUTPUT"
           echo "commit_sha=${COMMIT_SHA}" >> "$GITHUB_OUTPUT"
 
+      - name: Check live catalog and decide whether Pages recovery is needed
+        id: pages_health
+        if: inputs.dry_run != true
+        env:
+          PUSHED: ${{ steps.sync.outputs.pushed }}
+          PUSHED_SHA: ${{ steps.sync.outputs.commit_sha }}
+          BUILD_TYPE: ${{ steps.preflight.outputs.pages_build_type }}
+        run: |
+          SHA=$(git rev-parse HEAD)
+          if [ "${PUSHED}" = "true" ] && [ "${SHA}" != "${PUSHED_SHA}" ]; then
+            echo "::error::Catalog checkout does not match pushed commit SHA."
+            exit 1
+          fi
+          echo "commit_sha=${SHA}" >> "$GITHUB_OUTPUT"
+          DEPLOY=false
+          VERIFY=false
+          if [ "${BUILD_TYPE}" = "workflow" ]; then
+            if [ "${PUSHED}" = "true" ]; then
+              DEPLOY=true
+            else
+              # A previous run may have pushed successfully but failed to publish.
+              # Exit 1 means live data differs or is unavailable; other errors fail safely.
+              STATUS=0
+              node scripts/pages-catalog-health.mjs --check || STATUS=$?
+              if [ "${STATUS}" = "1" ]; then
+                echo "::notice::Live catalog is stale or unavailable; recovering Pages from ${SHA}."
+                DEPLOY=true
+              elif [ "${STATUS}" != "0" ]; then
+                exit "${STATUS}"
+              fi
+            fi
+            VERIFY=${DEPLOY}
+          elif [ "${PUSHED}" = "true" ]; then
+            # Legacy branch publishing is still handled by the existing PAT route.
+            VERIFY=true
+          fi
+          echo "deploy_required=${DEPLOY}" >> "$GITHUB_OUTPUT"
+          echo "verify_required=${VERIFY}" >> "$GITHUB_OUTPUT"
+
   deploy-pages:
-    # Explicit Pages deployment from the newly pushed commit SHA (never assumes GITHUB_TOKEN push fires another workflow)
+    # Deploy the exact checked commit after a new push OR a failed live catalog check.
     needs: sync-catalog
-    if: needs.sync-catalog.outputs.pushed == 'true' && needs.sync-catalog.outputs.pages_build_type == 'workflow'
+    if: needs.sync-catalog.outputs.deploy_required == 'true' && needs.sync-catalog.outputs.pages_build_type == 'workflow'
     uses: ./.github/workflows/deploy-pages.yml
     with:
       ref: ${{ needs.sync-catalog.outputs.commit_sha }}
@@ -208,51 +249,25 @@ jobs:
     needs: [sync-catalog, deploy-pages]
     if: >-
       always() &&
-      needs.sync-catalog.outputs.pushed == 'true' &&
+      needs.sync-catalog.result == 'success' &&
+      needs.sync-catalog.outputs.verify_required == 'true' &&
       (
         needs.deploy-pages.result == 'success' ||
         (needs.sync-catalog.outputs.pages_build_type != 'workflow' && needs.deploy-pages.result == 'skipped')
       )
     runs-on: ubuntu-latest
+    timeout-minutes: 8
     permissions:
       contents: read
     steps:
-      - name: Verify new or enriched episodes on live GitHub Pages catalog.json
-        env:
-          ADDED_KEYS: ${{ needs.sync-catalog.outputs.added_keys }}
-          EXPECTED_ITEMS: ${{ needs.sync-catalog.outputs.expected_items }}
-        run: |
-          node -e '
-            const targetKeys = (process.env.ADDED_KEYS || "").split(",").map(s => s.trim()).filter(Boolean);
-            const expectedItems = JSON.parse(process.env.EXPECTED_ITEMS || "[]");
-            if (targetKeys.length === 0) {
-              console.error("No target keys provided to verify.");
-              process.exit(1);
-            }
-            const url = "https://mikisaa.github.io/vspo-radio-shelf/catalog.json";
-            (async () => {
-              for (let i = 1; i <= 18; i++) {
-                try {
-                  const res = await fetch(`${url}?v=${Date.now()}`, {headers: {"Cache-Control": "no-cache"}});
-                  if (res.ok) {
-                    const data = await res.json();
-                    const byKey = new Map((data.items || []).map(x => [((x.url.match(/\/radio(\d+)$/) || [])[0] || "").slice(1), x]));
-                    const allMatched = targetKeys.every(k => byKey.has(k)) && expectedItems.every(exp => {
-                      const actual = byKey.get(exp.key);
-                      if (!actual) return false;
-                      if (exp.title && actual.title !== exp.title) return false;
-                      if (exp.hosts && actual.hosts !== exp.hosts) return false;
-                      return true;
-                    });
-                    if (allMatched) {
-                      console.log(`Verified on GitHub Pages (attempt ${i}): ${targetKeys.join(", ")} (total=${data.items.length})`);
-                      process.exit(0);
-                    }
-                  }
-                } catch {}
-                await new Promise(r => setTimeout(r, 10000));
-              }
-              console.error(`Timed out waiting for ${targetKeys.join(", ")} on ${url}`);
-              process.exit(1);
-            })();
-          '
+      - name: Checkout exact expected catalog commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.sync-catalog.outputs.commit_sha }}
+          persist-credentials: false
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify complete live GitHub Pages catalog.json
+        run: node scripts/pages-catalog-health.mjs --verify
